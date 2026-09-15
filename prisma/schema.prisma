@@ -1,0 +1,177 @@
+// Idle Cultivation — Prisma schema
+// Server-authoritative persistence for a cultivation idle game.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =====================================================================
+// Auth.js (NextAuth v5) models — required by @auth/prisma-adapter
+// =====================================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  accounts  Account[]
+  sessions  Session[]
+  character Character?
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@id([identifier, token])
+}
+
+// =====================================================================
+// Game models
+// =====================================================================
+
+enum GameMode {
+  MEDITATE // Bế quan — kiếm EXP theo thời gian
+  COMBAT   // Lịch luyện — vượt ải kiếm Gold + vật phẩm
+}
+
+enum Element {
+  KIM  // Metal
+  MOC  // Wood
+  THUY // Water
+  HOA  // Fire
+  THO  // Earth
+}
+
+model Character {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name  String  @default("Vô Danh")
+  realm Int     @default(0) // index vào bảng cảnh giới (balance.ts)
+  exp   BigInt  @default(0)
+  gold  BigInt  @default(0)
+  element Element @default(KIM)
+
+  // Trạng thái hiện tại + mốc thời gian để tính offline progress
+  mode       GameMode @default(MEDITATE)
+  lastTickAt DateTime @default(now())
+
+  // Chỉ số nền (chưa cộng trang bị / công pháp)
+  hp       Int   @default(100)
+  atk      Int   @default(10)
+  def      Int   @default(5)
+  pPower   Int   @default(10) // sức mạnh vật lý (thể tu — không dính ngũ hành)
+  mPower   Int   @default(10) // sức mạnh phép (dính ngũ hành)
+  pRes     Int   @default(5)  // thủ vật lý
+  mRes     Int   @default(5)  // thủ phép
+  atkSpeed Float @default(1.0)
+
+  // Tiến trình vượt ải
+  highestStage Int @default(0)
+  currentStage Int @default(1)
+
+  techniques CharTechnique[]
+  inventory  InventoryItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Technique {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String?
+  expMultiplier Float @default(1.1) // hệ số nhân EXP mỗi cấp khi active
+  unlockRealm Int     @default(0)
+  maxLevel    Int     @default(10)
+
+  chars CharTechnique[]
+}
+
+model CharTechnique {
+  id          String @id @default(cuid())
+  characterId String
+  techniqueId String
+  level       Int     @default(1)
+  active      Boolean @default(false)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  technique Technique @relation(fields: [techniqueId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, techniqueId])
+}
+
+model Stage {
+  id         String  @id @default(cuid())
+  index      Int     @unique
+  name       String
+  monsterHp  BigInt
+  monsterDps Int
+  element    Element
+  goldReward BigInt
+  dropTable  Json? // [{ itemKey, chance }]
+}
+
+model Item {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  name        String
+  type        String // MATERIAL | EQUIPMENT
+  slot        String? // weapon | armor | accessory (khi type = EQUIPMENT)
+  element     Element?
+  statBonus   Json? // { atk, def, hp, pPower, mPower, ... }
+  craftRecipe Json? // [{ itemKey, quantity }]
+
+  inventory InventoryItem[]
+}
+
+model InventoryItem {
+  id          String  @id @default(cuid())
+  characterId String
+  itemId      String
+  quantity    Int     @default(1)
+  equipped    Boolean @default(false)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  item      Item      @relation(fields: [itemId], references: [id])
+
+  @@unique([characterId, itemId, equipped])
+}
