@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
-import { STARTER_STONES } from "./balance";
+import { STARTER_STONES, STARTER_GOLD } from "./balance";
 
 const includeTech = { techniques: { include: { technique: true } } } as const;
 
@@ -13,7 +13,12 @@ export async function getOrCreateCharacter(userId: string) {
 
   if (!character) {
     character = await prisma.character.create({
-      data: { userId, spiritStones: BigInt(STARTER_STONES), starterGranted: true },
+      data: {
+        userId,
+        spiritStones: BigInt(STARTER_STONES),
+        gold: BigInt(STARTER_GOLD),
+        starterGranted: true,
+      },
       include: includeTech,
     });
     return character;
@@ -24,6 +29,7 @@ export async function getOrCreateCharacter(userId: string) {
       where: { id: character.id },
       data: {
         spiritStones: { increment: BigInt(STARTER_STONES) },
+        gold: { increment: BigInt(STARTER_GOLD) },
         starterGranted: true,
       },
       include: includeTech,

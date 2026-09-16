@@ -57,8 +57,11 @@ export const CYCLE_SECONDS = 5;
 // EXP gốc mỗi vòng (trước khi nhân cảnh giới + tâm pháp + buff).
 export const BASE_EXP_PER_CYCLE = 5;
 
-// Giới hạn thời gian offline được tính (giây). Ví dụ 24h.
-export const MAX_OFFLINE_SECONDS = 24 * 60 * 60;
+// Offline: tích lũy tối đa 8 giờ, và chỉ nhận 50% so với online.
+export const MAX_OFFLINE_SECONDS = 8 * 60 * 60;
+export const OFFLINE_RATE = 0.5;
+// Khoảng "còn online": tick cách nhau <= mốc này coi như đang chơi (100%).
+export const ONLINE_GRACE_MS = 3 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // CÂY EXP — mỗi đại cảnh giới có 9 tầng.
@@ -87,6 +90,71 @@ export function isMaxTier(major: number, sub: number): boolean {
   return major >= MAX_MAJOR && sub >= SUB_TIERS;
 }
 
+// Chỉ số tổng của tầng (để tính số tầng đã lên -> điểm chỉ số).
+export function totalTierIndex(major: number, sub: number): number {
+  return major * SUB_TIERS + (sub - 1);
+}
+
+// ---------------------------------------------------------------------------
+// ĐIỂM CHỈ SỐ — mỗi lần lên tầng nhận STAT_POINTS_PER_TIER điểm.
+// ---------------------------------------------------------------------------
+export const STAT_POINTS_PER_TIER = 3;
+export const STARTER_GOLD = 300;
+
+export type StatKey = "hp" | "atk" | "def" | "pPower" | "mPower" | "pRes" | "mRes";
+
+// Mỗi điểm cộng bao nhiêu vào chỉ số tương ứng.
+export const STAT_POINT_GAINS: Record<StatKey, number> = {
+  hp: 20,
+  atk: 3,
+  def: 2,
+  pPower: 3,
+  mPower: 3,
+  pRes: 2,
+  mRes: 2,
+};
+
+export const STAT_LABELS: Record<StatKey, string> = {
+  hp: "Máu",
+  atk: "Tấn công",
+  def: "Phòng thủ",
+  pPower: "SM Vật lý",
+  mPower: "SM Phép",
+  pRes: "Thủ vật lý",
+  mRes: "Thủ phép",
+};
+
+export const STAT_KEYS: StatKey[] = ["hp", "atk", "def", "pPower", "mPower", "pRes", "mRes"];
+
+export interface EffectiveStats {
+  hp: number;
+  atk: number;
+  def: number;
+  pPower: number;
+  mPower: number;
+  pRes: number;
+  mRes: number;
+  atkSpeed: number;
+}
+
+// Chỉ số hiệu dụng = nền cảnh giới + điểm phân bổ (sau này + trang bị + kỹ năng).
+export function computeStats(
+  major: number,
+  alloc: Record<StatKey, number>,
+): EffectiveStats {
+  const b = REALMS[Math.min(Math.max(major, 0), MAX_MAJOR)].statBonus;
+  return {
+    hp: b.hp + alloc.hp * STAT_POINT_GAINS.hp,
+    atk: b.atk + alloc.atk * STAT_POINT_GAINS.atk,
+    def: b.def + alloc.def * STAT_POINT_GAINS.def,
+    pPower: b.pPower + alloc.pPower * STAT_POINT_GAINS.pPower,
+    mPower: b.mPower + alloc.mPower * STAT_POINT_GAINS.mPower,
+    pRes: b.pRes + alloc.pRes * STAT_POINT_GAINS.pRes,
+    mRes: b.mRes + alloc.mRes * STAT_POINT_GAINS.mRes,
+    atkSpeed: 1.0,
+  };
+}
+
 // Tên hiển thị: "Trúc Cơ · tầng 3".
 export function tierName(major: number, sub: number): string {
   const name = REALMS[Math.min(Math.max(major, 0), MAX_MAJOR)]?.name ?? "Không rõ";
@@ -105,9 +173,17 @@ export function activeSlots(major: number): number {
   return 1 + Math.min(major, MAX_MAJOR);
 }
 
-// Linh thạch để nâng công pháp từ `level` -> `level + 1`.
-export function techniqueLevelCost(level: number, rarity = 1): number {
-  return Math.round(40 * rarity * level * Math.pow(1.35, level - 1));
+// Chi phí nâng công pháp từ `level` -> `level + 1`, theo tiền tệ.
+// GOLD (Vàng) rẻ hơn theo đơn vị nhưng Vàng kiếm nhiều; STONE (Linh thạch) quý hơn.
+export function techniqueLevelCost(
+  level: number,
+  rarity = 1,
+  currency: "GOLD" | "STONE" = "STONE",
+): number {
+  const base = rarity * level * Math.pow(1.35, level - 1);
+  return currency === "GOLD"
+    ? Math.round(120 * base)
+    : Math.round(40 * base);
 }
 
 export const RARITY_LABELS: Record<number, string> = {

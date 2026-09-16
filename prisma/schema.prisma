@@ -100,22 +100,33 @@ model Character {
   mode       GameMode @default(MEDITATE)
   lastTickAt DateTime @default(now())
 
-  // Chỉ số nền (chưa cộng trang bị / công pháp)
+  // Chỉ số nền (giữ cột; chỉ số hiệu dụng tính từ cảnh giới + phân bổ)
   hp       Int   @default(100)
   atk      Int   @default(10)
   def      Int   @default(5)
-  pPower   Int   @default(10) // sức mạnh vật lý (thể tu — không dính ngũ hành)
-  mPower   Int   @default(10) // sức mạnh phép (dính ngũ hành)
-  pRes     Int   @default(5)  // thủ vật lý
-  mRes     Int   @default(5)  // thủ phép
+  pPower   Int   @default(10)
+  mPower   Int   @default(10)
+  pRes     Int   @default(5)
+  mRes     Int   @default(5)
   atkSpeed Float @default(1.0)
+
+  // Điểm chỉ số tự do (mỗi lần lên tầng +3) và phân bổ của người chơi
+  statPoints Int @default(0)
+  allocHp     Int @default(0)
+  allocAtk    Int @default(0)
+  allocDef    Int @default(0)
+  allocPPower Int @default(0)
+  allocMPower Int @default(0)
+  allocPRes   Int @default(0)
+  allocMRes   Int @default(0)
 
   // Tiến trình vượt ải
   highestStage Int @default(0)
   currentStage Int @default(1)
 
-  // Quà khởi đầu (linh thạch) đã trao chưa
-  starterGranted Boolean @default(false)
+  // Quà khởi đầu đã trao chưa; mốc thời gian cho "Tập trung cao độ"
+  starterGranted Boolean   @default(false)
+  lastFocusAt    DateTime?
 
   techniques CharTechnique[]
   inventory  InventoryItem[]
@@ -136,6 +147,8 @@ model Technique {
   element       Element? // hệ (null = vô thuộc tính)
   coverKey      String   @default("azure") // biến thể ảnh bìa (SVG)
   rarity        Int      @default(1) // 1 Thường, 2 Hiếm, 3 Siêu hiếm
+  currency      String   @default("STONE") // "GOLD" (Vàng) hoặc "STONE" (Linh thạch)
+  unlockCost    Int      @default(0) // chi phí lĩnh ngộ (theo currency); 0 = miễn phí
   sortOrder     Int      @default(0)
 
   chars CharTechnique[]

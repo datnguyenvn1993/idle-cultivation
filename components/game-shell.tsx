@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { MeditationView } from "@/components/meditation-view";
 import { CongPhapPanel } from "@/components/cong-phap-panel";
-import { toggleMode } from "@/app/actions";
+import { toggleMode, allocateStat } from "@/app/actions";
 import { signOutAction } from "@/app/actions-auth";
+import { STAT_KEYS, STAT_LABELS, STAT_POINT_GAINS, type StatKey } from "@/lib/game/balance";
 import type { CharacterState, TechniqueView } from "@/lib/game/types";
 
 type TabId = "tu-luyen" | "cong-phap" | "ky-nang" | "talent" | "trang-bi";
@@ -17,15 +18,6 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "trang-bi", label: "Trang Bị", icon: "🎒" },
 ];
 
-function Stat({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg bg-white/5 px-2.5 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-white/40">{label}</div>
-      <div className="text-base font-semibold text-white/90">{value}</div>
-    </div>
-  );
-}
-
 function ComingSoon({ title, note }: { title: string; note: string }) {
   return (
     <div className="mt-10 text-center">
@@ -33,6 +25,75 @@ function ComingSoon({ title, note }: { title: string; note: string }) {
       <div className="mt-3 text-lg font-bold">{title}</div>
       <p className="mx-auto mt-1 max-w-xs text-sm text-white/50">{note}</p>
     </div>
+  );
+}
+
+function StatsSection({ state }: { state: CharacterState }) {
+  const [pending, start] = useTransition();
+  const val: Record<StatKey, number> = {
+    hp: state.hp,
+    atk: state.atk,
+    def: state.def,
+    pPower: state.pPower,
+    mPower: state.mPower,
+    pRes: state.pRes,
+    mRes: state.mRes,
+  };
+  const canAlloc = state.statPoints > 0;
+
+  return (
+    <section className="mt-4 rounded-2xl bg-panel/80 p-4 shadow-xl ring-1 ring-white/5">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-sm font-semibold text-white/70">Chỉ số</span>
+        {canAlloc && (
+          <span className="rounded-full bg-gold/20 px-2.5 py-0.5 text-xs font-semibold text-gold">
+            +{state.statPoints} điểm chưa dùng
+          </span>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {STAT_KEYS.map((k) => (
+          <div
+            key={k}
+            className="flex items-center justify-between rounded-lg bg-white/5 px-2.5 py-2"
+          >
+            <div className="min-w-0">
+              <div className="text-[10px] uppercase tracking-wide text-white/40">
+                {STAT_LABELS[k]}
+              </div>
+              <div className="text-base font-semibold text-white/90">
+                {val[k].toLocaleString()}
+              </div>
+            </div>
+            {canAlloc && (
+              <button
+                disabled={pending}
+                title={`+${STAT_POINT_GAINS[k]} ${STAT_LABELS[k]}`}
+                onClick={() => start(async () => { await allocateStat(k); })}
+                className="ml-2 h-7 w-7 shrink-0 rounded-lg bg-jade text-lg font-bold leading-none text-black transition hover:brightness-110 disabled:opacity-40"
+              >
+                +
+              </button>
+            )}
+          </div>
+        ))}
+        <div className="rounded-lg bg-white/5 px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Tốc đánh</div>
+          <div className="text-base font-semibold text-white/90">
+            {state.atkSpeed.toFixed(1)}
+          </div>
+        </div>
+        <div className="rounded-lg bg-white/5 px-2.5 py-2">
+          <div className="text-[10px] uppercase tracking-wide text-white/40">Ải cao nhất</div>
+          <div className="text-base font-semibold text-white/90">{state.highestStage}</div>
+        </div>
+      </div>
+      {canAlloc && (
+        <p className="mt-2 text-center text-xs text-white/40">
+          Mỗi lần lên tầng nhận 3 điểm — phân bổ để cá nhân hóa lối chơi.
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -115,20 +176,7 @@ export function GameShell({
               </section>
             )}
 
-            <section className="mt-4 rounded-2xl bg-panel/80 p-4 shadow-xl ring-1 ring-white/5">
-              <div className="mb-2 text-sm font-semibold text-white/70">Chỉ số</div>
-              <div className="grid grid-cols-3 gap-2">
-                <Stat label="Máu" value={state.hp} />
-                <Stat label="Tấn công" value={state.atk} />
-                <Stat label="Phòng thủ" value={state.def} />
-                <Stat label="SM Vật lý" value={state.pPower} />
-                <Stat label="SM Phép" value={state.mPower} />
-                <Stat label="Tốc đánh" value={state.atkSpeed.toFixed(1)} />
-                <Stat label="Thủ vật lý" value={state.pRes} />
-                <Stat label="Thủ phép" value={state.mRes} />
-                <Stat label="Ải cao nhất" value={state.highestStage} />
-              </div>
-            </section>
+            <StatsSection state={state} />
           </>
         )}
 
@@ -136,6 +184,7 @@ export function GameShell({
           <CongPhapPanel
             techniques={techniques}
             major={state.realm}
+            gold={state.gold}
             spiritStones={state.spiritStones}
           />
         )}

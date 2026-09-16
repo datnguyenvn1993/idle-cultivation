@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { syncTick } from "@/app/actions";
+import { syncTick, focusReward } from "@/app/actions";
 import {
   expForTier,
   isMaxTier,
@@ -37,10 +37,13 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashKey, setFlashKey] = useState(0);
   const [offline, setOffline] = useState(
-    initial.gainedThisTick > 0
+    initial.offlineThisTick && initial.gainedThisTick > 0
       ? { gained: initial.gainedThisTick, cycles: initial.cyclesThisTick }
       : null,
   );
+  const [focusOn, setFocusOn] = useState(false);
+  const [orbs, setOrbs] = useState<{ id: number; x: number; y: number }[]>([]);
+  const orbId = useRef(0);
 
   const majorRef = useRef(initial.realm);
   const subRef = useRef(initial.subLevel);
@@ -146,12 +149,47 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
     };
   }, [doSync]);
 
+  // "Tập trung cao độ": sinh check-point ngẫu nhiên khi bật.
+  useEffect(() => {
+    if (!focusOn) {
+      setOrbs([]);
+      return;
+    }
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const spawn = () => {
+      if (!alive) return;
+      const id = orbId.current++;
+      const x = 12 + Math.random() * 76;
+      const y = 12 + Math.random() * 66;
+      setOrbs((o) => [...o, { id, x, y }]);
+      setTimeout(() => setOrbs((o) => o.filter((k) => k.id !== id)), 2600);
+      timer = setTimeout(spawn, 1500 + Math.random() * 2000);
+    };
+    timer = setTimeout(spawn, 600);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [focusOn]);
+
+  const clickOrb = useCallback(
+    (id: number) => {
+      setOrbs((o) => o.filter((k) => k.id !== id));
+      completeCycle(); // phản hồi tức thì (+1 vòng optimistic)
+      focusReward()
+        .then(() => doSync())
+        .catch(() => {});
+    },
+    [completeCycle, doSync],
+  );
+
   return (
     <section className="rounded-2xl bg-panel/80 p-5 shadow-xl ring-1 ring-white/5">
       {offline && (
         <div className="mb-4 flex items-center justify-between rounded-xl border border-jade/30 bg-jade/10 px-4 py-2 text-sm">
           <span className="text-jade">
-            🧘 Bế quan lúc vắng mặt: <b>+{offline.gained.toLocaleString()} EXP</b>{" "}
+            🧘 Tu luyện offline (50%): <b>+{offline.gained.toLocaleString()} EXP</b>{" "}
             ({offline.cycles.toLocaleString()} vòng)
           </span>
           <button
@@ -273,7 +311,37 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
             </span>
           ))}
         </div>
+
+        {/* Check-point Tập trung cao độ */}
+        {orbs.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => clickOrb(o.id)}
+            className="absolute z-20 flex h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-gold text-lg shadow-lg ring-2 ring-gold/60"
+            style={{
+              left: `${o.x}%`,
+              top: `${o.y}%`,
+              animation: "qi-breathe 1.2s ease-in-out infinite",
+              boxShadow: "0 0 14px rgba(232,195,122,0.9)",
+            }}
+            aria-label="Điểm tập trung"
+          >
+            ✦
+          </button>
+        ))}
       </div>
+
+      {/* Nút Tập trung cao độ */}
+      <button
+        onClick={() => setFocusOn((v) => !v)}
+        className={`mt-1 w-full rounded-xl py-2.5 text-sm font-semibold transition ${
+          focusOn
+            ? "bg-gold text-black hover:brightness-110"
+            : "bg-white/10 text-white/80 hover:bg-white/15"
+        }`}
+      >
+        {focusOn ? "✦ Đang Tập Trung Cao Độ — chạm điểm sáng để +1 vòng" : "✦ Tập trung cao độ"}
+      </button>
 
       {/* Cảnh giới · tầng + thanh EXP */}
       <div className="mt-2">
@@ -303,8 +371,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       </div>
 
       <p className="mt-4 text-center text-xs text-white/30">
-        Đang bế quan — mỗi vòng luyện khí hoàn thành sẽ cộng tu vi. Tu vi vẫn tăng
-        khi bạn offline (tối đa 24 giờ).
+        Online nhận 100% tu vi mỗi vòng. Offline vẫn tu (50%, tích lũy tối đa 8 giờ).
       </p>
     </section>
   );

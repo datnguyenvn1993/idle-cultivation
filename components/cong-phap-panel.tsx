@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { learnTechnique, toggleTechnique, levelTechnique } from "@/app/actions";
 import { TechniqueCover } from "@/components/technique-cover";
 import {
@@ -11,17 +11,18 @@ import {
 } from "@/lib/game/balance";
 import type { TechniqueView } from "@/lib/game/types";
 
-function pct(mult: number) {
-  return `+${Math.round((mult - 1) * 100)}%`;
-}
+const pct = (m: number) => `+${Math.round((m - 1) * 100)}%`;
+const cur = (c: "GOLD" | "STONE") => (c === "GOLD" ? "🪙" : "💎");
 
 export function CongPhapPanel({
   techniques,
   major,
+  gold,
   spiritStones,
 }: {
   techniques: TechniqueView[];
   major: number;
+  gold: number;
   spiritStones: number;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -32,6 +33,17 @@ export function CongPhapPanel({
   const activeCount = techniques.filter((t) => t.active).length;
   const selected = techniques.find((t) => t.id === selectedId) ?? null;
 
+  // Nhóm theo đại cảnh giới.
+  const groups = useMemo(() => {
+    const m = new Map<number, TechniqueView[]>();
+    for (const t of techniques) {
+      const arr = m.get(t.unlockRealm) ?? [];
+      arr.push(t);
+      m.set(t.unlockRealm, arr);
+    }
+    return [...m.entries()].sort((a, b) => a[0] - b[0]);
+  }, [techniques]);
+
   function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
     setError(null);
     startTransition(async () => {
@@ -39,6 +51,8 @@ export function CongPhapPanel({
       if (!res.ok) setError(res.error ?? "Có lỗi xảy ra");
     });
   }
+
+  const balOf = (c: "GOLD" | "STONE") => (c === "GOLD" ? gold : spiritStones);
 
   return (
     <div>
@@ -49,61 +63,65 @@ export function CongPhapPanel({
             {activeCount}/{slots}
           </b>
         </span>
-        <span className="text-white/70">
-          💎 <b className="text-mystic">{spiritStones.toLocaleString()}</b> linh thạch
-        </span>
+        <span className="text-white/60">🪙 {gold.toLocaleString()} · 💎 {spiritStones.toLocaleString()}</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
-        {techniques.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => {
-              setError(null);
-              setSelectedId(t.id);
-            }}
-            className="group relative flex flex-col items-center"
-          >
-            <div
-              className={`relative w-full overflow-hidden rounded-lg ring-1 transition ${
-                t.active
-                  ? "ring-2 ring-jade"
-                  : "ring-white/10 group-hover:ring-white/30"
-              }`}
-            >
-              <TechniqueCover
-                coverKey={t.coverKey}
-                rarity={t.rarity}
-                element={t.element}
-                locked={!t.unlocked}
-              />
-              {t.owned && (
-                <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
-                  Lv {t.level}
+      {groups.map(([realm, list]) => (
+        <div key={realm} className="mb-4">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-sm font-semibold text-gold">{realmName(realm)}</span>
+            <span className="h-px flex-1 bg-white/10" />
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
+            {list.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setError(null);
+                  setSelectedId(t.id);
+                }}
+                className="group relative flex flex-col items-center"
+              >
+                <div
+                  className={`relative w-full overflow-hidden rounded-lg ring-1 transition ${
+                    t.active ? "ring-2 ring-jade" : "ring-white/10 group-hover:ring-white/30"
+                  }`}
+                >
+                  <TechniqueCover
+                    coverKey={t.coverKey}
+                    rarity={t.rarity}
+                    element={t.element}
+                    locked={!t.unlocked}
+                  />
+                  <span className="absolute right-1 top-1 text-xs">{cur(t.currency)}</span>
+                  {t.owned && (
+                    <span className="absolute bottom-1 right-1 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                      Lv {t.level}
+                    </span>
+                  )}
+                  {t.active && (
+                    <span className="absolute left-1 bottom-1 rounded bg-jade px-1.5 py-0.5 text-[10px] font-bold text-black">
+                      Tu
+                    </span>
+                  )}
+                </div>
+                <span className="mt-1 line-clamp-2 text-center text-[11px] leading-tight text-white/80">
+                  {t.name}
                 </span>
-              )}
-              {t.active && (
-                <span className="absolute left-1 top-1 rounded bg-jade px-1.5 py-0.5 text-[10px] font-bold text-black">
-                  Đang tu
-                </span>
-              )}
-            </div>
-            <span className="mt-1 line-clamp-2 text-center text-[11px] leading-tight text-white/80">
-              {t.name}
-            </span>
-          </button>
-        ))}
-      </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
 
-      <p className="mt-4 text-center text-xs text-white/30">
-        Kích hoạt công pháp để tăng EXP mỗi vòng luyện khí. Lên đại cảnh giới mở
-        thêm ô kích hoạt.
+      <p className="mt-2 text-center text-xs text-white/30">
+        Cả hai bộ (Vàng &amp; Linh thạch) đều cộng dồn khi kích hoạt. Lên đại cảnh giới
+        mở thêm ô kích hoạt.
       </p>
 
-      {/* Chi tiết */}
       {selected && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 sm:items-center sm:p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 sm:items-center sm:p-4"
           onClick={() => setSelectedId(null)}
         >
           <div
@@ -123,7 +141,8 @@ export function CongPhapPanel({
                 <div className="text-lg font-bold text-gold">{selected.name}</div>
                 <div className="mt-0.5 text-xs text-white/50">
                   {RARITY_LABELS[selected.rarity]} ·{" "}
-                  {selected.element ? ELEMENT_LABELS[selected.element] : "Vô thuộc tính"}
+                  {selected.element ? ELEMENT_LABELS[selected.element] : "Vô thuộc tính"} ·{" "}
+                  {cur(selected.currency)} {selected.currency === "GOLD" ? "Vàng" : "Linh thạch"}
                 </div>
                 <p className="mt-2 text-sm leading-snug text-white/70">
                   {selected.description}
@@ -131,7 +150,6 @@ export function CongPhapPanel({
               </div>
             </div>
 
-            {/* Hiệu quả */}
             <div className="mt-4 rounded-xl bg-white/5 p-3 text-sm">
               {selected.owned ? (
                 <div className="flex items-center justify-between">
@@ -142,17 +160,13 @@ export function CongPhapPanel({
                   <span className="font-semibold text-jade">
                     {pct(selected.multiplierNow)} EXP/vòng
                     {!selected.atMaxLevel && (
-                      <span className="text-white/40">
-                        {" "}
-                        → {pct(selected.multiplierNext)}
-                      </span>
+                      <span className="text-white/40"> → {pct(selected.multiplierNext)}</span>
                     )}
                   </span>
                 </div>
               ) : (
                 <div className="text-white/60">
-                  Lĩnh ngộ để nhận {pct(Math.pow(selected.multiplierNext, 1))} EXP/vòng
-                  (cấp 1)
+                  Lĩnh ngộ để nhận {pct(selected.multiplierNext)} EXP/vòng (cấp 1)
                 </div>
               )}
             </div>
@@ -163,7 +177,6 @@ export function CongPhapPanel({
               </div>
             )}
 
-            {/* Hành động */}
             <div className="mt-4 flex gap-2">
               {!selected.unlocked ? (
                 <div className="flex-1 rounded-xl bg-white/5 py-3 text-center text-sm text-white/40">
@@ -171,11 +184,13 @@ export function CongPhapPanel({
                 </div>
               ) : !selected.owned ? (
                 <button
-                  disabled={pending}
+                  disabled={pending || balOf(selected.currency) < selected.learnCost}
                   onClick={() => run(() => learnTechnique(selected.id))}
                   className="flex-1 rounded-xl bg-jade py-3 font-semibold text-black transition hover:brightness-110 disabled:opacity-50"
                 >
-                  Lĩnh ngộ
+                  {selected.learnCost > 0
+                    ? `Lĩnh ngộ · ${selected.learnCost.toLocaleString()}${cur(selected.currency)}`
+                    : "Lĩnh ngộ (miễn phí)"}
                 </button>
               ) : (
                 <>
@@ -191,13 +206,17 @@ export function CongPhapPanel({
                     {selected.active ? "Ngừng tu" : "Kích hoạt"}
                   </button>
                   <button
-                    disabled={pending || selected.atMaxLevel}
+                    disabled={
+                      pending ||
+                      selected.atMaxLevel ||
+                      balOf(selected.currency) < selected.levelUpCost
+                    }
                     onClick={() => run(() => levelTechnique(selected.id))}
                     className="flex-1 rounded-xl bg-mystic py-3 font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
                   >
                     {selected.atMaxLevel
                       ? "Tối đa"
-                      : `Nâng cấp · ${selected.levelUpCost.toLocaleString()}💎`}
+                      : `Nâng · ${selected.levelUpCost.toLocaleString()}${cur(selected.currency)}`}
                   </button>
                 </>
               )}

@@ -1,4 +1,4 @@
-import type { ElementKey } from "./balance";
+import type { ElementKey, StatKey } from "./balance";
 
 // Công pháp đang sở hữu (dạng gọn để tính expPerCycle ở cả client lẫn server).
 export interface TechniqueState {
@@ -18,15 +18,17 @@ export interface TechniqueView {
   element: ElementKey | null;
   coverKey: string;
   rarity: number;
+  currency: "GOLD" | "STONE"; // nâng cấp / lĩnh ngộ bằng Vàng hay Linh thạch
   unlockRealm: number;
   maxLevel: number;
   unlocked: boolean; // đại cảnh giới đủ để lĩnh ngộ
   owned: boolean; // đã lĩnh ngộ
+  learnCost: number; // chi phí lĩnh ngộ (0 = miễn phí)
   level: number; // 0 nếu chưa học
   active: boolean;
   multiplierNow: number; // expMultiplier^level
   multiplierNext: number; // ở cấp +1
-  levelUpCost: number; // linh thạch để lên cấp
+  levelUpCost: number; // chi phí lên cấp (theo currency)
   atMaxLevel: boolean;
 }
 
@@ -51,7 +53,11 @@ export interface CharacterState {
   gold: number; // Vàng
   spiritStones: number; // Linh thạch
 
-  // Chỉ số
+  // Điểm chỉ số & phân bổ
+  statPoints: number;
+  alloc: Record<StatKey, number>;
+
+  // Chỉ số hiệu dụng
   hp: number;
   atk: number;
   def: number;
@@ -69,4 +75,5 @@ export interface CharacterState {
   // Kết quả tick gần nhất (để hiện thông báo "tu luyện offline")
   gainedThisTick: number;
   cyclesThisTick: number;
+  offlineThisTick: boolean; // đợt tick vừa rồi là offline (50%)?
 }

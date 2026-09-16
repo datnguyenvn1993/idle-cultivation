@@ -1,11 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateCharacter } from "@/lib/game/character";
-import { runMeditationTick } from "@/lib/game/tick";
-import { activeSlots, techniqueLevelCost } from "@/lib/game/balance";
+import { runMeditationTick, grantFocusCycles } from "@/lib/game/tick";
+import {
+  activeSlots,
+  techniqueLevelCost,
+  STAT_KEYS,
+  type StatKey,
+} from "@/lib/game/balance";
 import type { CharacterState } from "@/lib/game/types";
 
 type ActionResult = { ok: boolean; error?: string };
@@ -16,13 +22,25 @@ async function requireCharacter() {
   return getOrCreateCharacter(session.user.id);
 }
 
-// Client gọi định kỳ để đồng bộ EXP server-authoritative.
+function allocData(stat: StatKey): Prisma.CharacterUpdateInput {
+  const inc = { increment: 1 };
+  const dec = { decrement: 1 };
+  switch (stat) {
+    case "hp": return { statPoints: dec, allocHp: inc };
+    case "atk": return { statPoints: dec, allocAtk: inc };
+    case "def": return { statPoints: dec, allocDef: inc };
+    case "pPower": return { statPoints: dec, allocPPower: inc };
+    case "mPower": return { statPoints: dec, allocMPower: inc };
+    case "pRes": return { statPoints: dec, allocPRes: inc };
+    case "mRes": return { statPoints: dec, allocMRes: inc };
+  }
+}
+
 export async function syncTick(): Promise<CharacterState> {
   const character = await requireCharacter();
   return runMeditationTick(character);
 }
 
-// Đổi chế độ: Thiền <-> Vượt ải. Quyết toán EXP trước khi chuyển.
 export async function toggleMode(): Promise<void> {
   const character = await requireCharacter();
   await runMeditationTick(character);
@@ -34,25 +52,41 @@ export async function toggleMode(): Promise<void> {
   revalidatePath("/");
 }
 
-// Lĩnh ngộ công pháp (miễn phí khi đủ cảnh giới).
+// Lĩnh ngộ công pháp. Bộ Vàng free; bộ Linh thạch tốn unlockCost.
 export async function learnTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
-  const state = await runMeditationTick(character); // quyết toán trước khi đổi
+  const state = await runMeditationTick(character);
   const tech = await prisma.technique.findUnique({ where: { id: techniqueId } });
   if (!tech) return { ok: false, error: "Không tìm thấy công pháp" };
   if (state.realm < tech.unlockRealm)
     return { ok: false, error: "Chưa đủ cảnh giới để lĩnh ngộ" };
 
-  await prisma.charTechnique.upsert({
+  const existing = await prisma.charTechnique.findUnique({
     where: { characterId_techniqueId: { characterId: character.id, techniqueId } },
-    create: { characterId: character.id, techniqueId, level: 1, active: false },
-    update: {},
   });
+  if (existing) return { ok: true };
+
+  const cost = tech.currency === "GOLD" ? 0 : tech.unlockCost;
+  if (cost > 0 && Number(character.spiritStones) < cost)
+    return { ok: false, error: `Không đủ linh thạch (cần ${cost.toLocaleString()})` };
+
+  await prisma.$transaction([
+    ...(cost > 0
+      ? [
+          prisma.character.update({
+            where: { id: character.id },
+            data: { spiritStones: { decrement: BigInt(cost) } },
+          }),
+        ]
+      : []),
+    prisma.charTechnique.create({
+      data: { characterId: character.id, techniqueId, level: 1, active: false },
+    }),
+  ]);
   revalidatePath("/");
   return { ok: true };
 }
 
-// Kích hoạt / tắt công pháp (giới hạn số ô theo cảnh giới).
 export async function toggleTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
   const state = await runMeditationTick(character);
@@ -81,7 +115,7 @@ export async function toggleTechnique(techniqueId: string): Promise<ActionResult
   return { ok: true };
 }
 
-// Nâng cấp công pháp bằng linh thạch.
+// Nâng cấp công pháp bằng đúng tiền tệ của nó (Vàng hoặc Linh thạch).
 export async function levelTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
   await runMeditationTick(character);
@@ -93,26 +127,62 @@ export async function levelTechnique(techniqueId: string): Promise<ActionResult>
     prisma.technique.findUnique({ where: { id: techniqueId } }),
     prisma.character.findUnique({
       where: { id: character.id },
-      select: { spiritStones: true },
+      select: { gold: true, spiritStones: true },
     }),
   ]);
   if (!ct || !tech || !fresh) return { ok: false, error: "Chưa lĩnh ngộ công pháp này" };
   if (ct.level >= tech.maxLevel) return { ok: false, error: "Đã đạt cấp tối đa" };
 
-  const cost = techniqueLevelCost(ct.level + 1, tech.rarity);
-  if (Number(fresh.spiritStones) < cost)
-    return { ok: false, error: `Không đủ linh thạch (cần ${cost.toLocaleString()})` };
+  const currency = tech.currency === "GOLD" ? "GOLD" : "STONE";
+  const cost = techniqueLevelCost(ct.level + 1, tech.rarity, currency);
+  const have = currency === "GOLD" ? Number(fresh.gold) : Number(fresh.spiritStones);
+  if (have < cost)
+    return {
+      ok: false,
+      error: `Không đủ ${currency === "GOLD" ? "vàng" : "linh thạch"} (cần ${cost.toLocaleString()})`,
+    };
 
   await prisma.$transaction([
     prisma.character.update({
       where: { id: character.id },
-      data: { spiritStones: { decrement: BigInt(cost) } },
+      data:
+        currency === "GOLD"
+          ? { gold: { decrement: BigInt(cost) } }
+          : { spiritStones: { decrement: BigInt(cost) } },
     }),
     prisma.charTechnique.update({
       where: { id: ct.id },
       data: { level: { increment: 1 } },
     }),
   ]);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Phân bổ 1 điểm chỉ số.
+export async function allocateStat(stat: string): Promise<ActionResult> {
+  const character = await requireCharacter();
+  if (!STAT_KEYS.includes(stat as StatKey))
+    return { ok: false, error: "Chỉ số không hợp lệ" };
+  if (character.statPoints <= 0) return { ok: false, error: "Hết điểm chỉ số" };
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: allocData(stat as StatKey),
+  });
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// "Tập trung cao độ": nhấn check-point để +1 vòng chu thiên ngay.
+export async function focusReward(): Promise<ActionResult> {
+  const character = await requireCharacter();
+  if (character.mode !== "MEDITATE")
+    return { ok: false, error: "Chỉ dùng khi đang thiền" };
+  if (character.lastFocusAt && Date.now() - character.lastFocusAt.getTime() < 600)
+    return { ok: false, error: "Chậm lại chút" };
+
+  await grantFocusCycles(character, 1);
   revalidatePath("/");
   return { ok: true };
 }

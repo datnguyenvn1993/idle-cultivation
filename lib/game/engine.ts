@@ -5,7 +5,6 @@ import {
   REALMS,
   BASE_EXP_PER_CYCLE,
   CYCLE_SECONDS,
-  MAX_OFFLINE_SECONDS,
   SUB_TIERS,
   MAX_MAJOR,
   expForTier,
@@ -85,9 +84,10 @@ export function applyMeditationByTime(
   elapsedMs: number,
   techniques: ActiveTechnique[],
   speedMult = 1,
+  expRate = 1, // 1 = online (100%), 0.5 = offline
 ): MeditationResult {
   const cycleMs = cycleDurationMs(speedMult);
-  const clamped = Math.max(0, Math.min(elapsedMs, MAX_OFFLINE_SECONDS * 1000));
+  const clamped = Math.max(0, elapsedMs);
   const cycles = Math.floor(clamped / cycleMs);
   const leftoverMs = clamped - cycles * cycleMs;
 
@@ -98,7 +98,7 @@ export function applyMeditationByTime(
 
   for (let i = 0; i < cycles; i++) {
     if (isMaxTier(nm, ns)) break; // đã tối đa, ngừng cộng
-    const pc = expPerCycle(nm, techniques);
+    const pc = expPerCycle(nm, techniques) * expRate;
     ne += pc;
     gained += pc;
     // lên tầng / đột phá liên tiếp nếu đủ
