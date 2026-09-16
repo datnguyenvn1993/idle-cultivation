@@ -6,6 +6,10 @@ import {
   BASE_EXP_PER_CYCLE,
   CYCLE_SECONDS,
   MAX_OFFLINE_SECONDS,
+  SUB_TIERS,
+  MAX_MAJOR,
+  expForTier,
+  isMaxTier,
   OVERCOMES,
   ELEMENT_ADVANTAGE,
   ELEMENT_DISADVANTAGE,
@@ -62,14 +66,10 @@ export function cycleDurationMs(speedMult = 1): number {
   return Math.max(200, Math.round((CYCLE_SECONDS * 1000) / speedMult));
 }
 
-// Ngưỡng đột phá của cảnh giới hiện tại.
-export function expToNext(realm: number): number {
-  return REALMS[Math.min(realm, REALMS.length - 1)]?.expToNext ?? Infinity;
-}
-
 export interface MeditationResult {
-  newRealm: number;
-  newExp: number; // exp còn lại trong cảnh giới mới
+  newMajor: number; // đại cảnh giới mới
+  newSub: number; // tầng mới (1..9)
+  newExp: number; // tu vi còn lại trong tầng hiện tại
   gained: number; // tổng exp nhận trong đợt tick này
   cycles: number; // số vòng đã hoàn thành
   leftoverMs: number; // thời gian dư chưa đủ 1 vòng (để giữ tiến trình)
@@ -77,9 +77,10 @@ export interface MeditationResult {
 }
 
 // Cộng EXP theo số vòng hoàn thành trong `elapsedMs` (dùng chung offline + online).
-// Tự đột phá cảnh giới; tính lại expPerCycle sau mỗi lần đột phá (rate đổi theo cảnh giới).
+// Tự lên tầng / đột phá đại cảnh giới; expPerCycle tính lại theo đại cảnh giới hiện tại.
 export function applyMeditationByTime(
-  realm: number,
+  major: number,
+  sub: number,
   exp: number,
   elapsedMs: number,
   techniques: ActiveTechnique[],
@@ -90,24 +91,37 @@ export function applyMeditationByTime(
   const cycles = Math.floor(clamped / cycleMs);
   const leftoverMs = clamped - cycles * cycleMs;
 
-  let newExp = exp;
-  let newRealm = realm;
+  let nm = major;
+  let ns = sub;
+  let ne = exp;
   let gained = 0;
 
   for (let i = 0; i < cycles; i++) {
-    const pc = expPerCycle(newRealm, techniques);
-    newExp += pc;
+    if (isMaxTier(nm, ns)) break; // đã tối đa, ngừng cộng
+    const pc = expPerCycle(nm, techniques);
+    ne += pc;
     gained += pc;
-    // đột phá liên tiếp nếu đủ
-    while (newRealm < REALMS.length - 1) {
-      const need = REALMS[newRealm].expToNext;
-      if (!isFinite(need) || newExp < need) break;
-      newExp -= need;
-      newRealm += 1;
+    // lên tầng / đột phá liên tiếp nếu đủ
+    while (!isMaxTier(nm, ns)) {
+      const need = expForTier(nm, ns);
+      if (ne < need) break;
+      ne -= need;
+      if (ns < SUB_TIERS) {
+        ns += 1;
+      } else {
+        nm += 1;
+        ns = 1;
+      }
     }
   }
 
-  return { newRealm, newExp, gained, cycles, leftoverMs, cycleMs };
+  // Ở tầng tối đa thì chặn EXP không vượt ngưỡng (hiển thị đầy).
+  if (isMaxTier(nm, ns)) {
+    ne = Math.min(ne, expForTier(nm, ns));
+    if (nm > MAX_MAJOR) nm = MAX_MAJOR;
+  }
+
+  return { newMajor: nm, newSub: ns, newExp: ne, gained, cycles, leftoverMs, cycleMs };
 }
 
 // ---------------------------------------------------------------------------

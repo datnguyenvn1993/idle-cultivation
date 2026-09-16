@@ -86,10 +86,14 @@ model Character {
   userId String @unique
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  name  String  @default("Vô Danh")
-  realm Int     @default(0) // index vào bảng cảnh giới (balance.ts)
-  exp   BigInt  @default(0)
-  gold  BigInt  @default(0)
+  name     String @default("Vô Danh")
+  realm    Int    @default(0) // đại cảnh giới (index vào REALMS trong balance.ts)
+  subLevel Int    @default(1) // tầng 1..9 trong đại cảnh giới hiện tại
+  exp      BigInt @default(0) // tu vi tích lũy trong TẦNG hiện tại
+
+  gold         BigInt @default(0) // Vàng — rơi từ quái
+  spiritStones BigInt @default(0) // Linh thạch — tiền nạp / cao cấp
+
   element Element @default(KIM)
 
   // Trạng thái hiện tại + mốc thời gian để tính offline progress

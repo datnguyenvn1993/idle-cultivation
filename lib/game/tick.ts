@@ -1,10 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
-import { REALMS, realmName, type ElementKey } from "./balance";
+import { expForTier, isMaxTier, tierName, type ElementKey } from "./balance";
 import {
   applyMeditationByTime,
   expPerCycle,
   cycleDurationMs,
-  expToNext,
   type ActiveTechnique,
 } from "./engine";
 import type { CharacterState, TechniqueState } from "./types";
@@ -30,7 +29,8 @@ function toActive(techs: TechniqueState[]): ActiveTechnique[] {
 
 function buildState(
   character: CharacterWithTechniques,
-  realm: number,
+  major: number,
+  sub: number,
   exp: number,
   cycleProgressMs: number,
   gainedThisTick: number,
@@ -41,14 +41,17 @@ function buildState(
     name: character.name,
     mode: character.mode,
     element: character.element as ElementKey,
-    realm,
-    realmName: realmName(realm),
+    realm: major,
+    subLevel: sub,
+    tierName: tierName(major, sub),
+    isMax: isMaxTier(major, sub),
     exp,
-    expToNext: expToNext(realm),
-    expPerCycle: expPerCycle(realm, toActive(techs)),
+    expToNext: expForTier(major, sub),
+    expPerCycle: expPerCycle(major, toActive(techs)),
     cycleMs: cycleDurationMs(1),
     cycleProgressMs,
     gold: Number(character.gold),
+    spiritStones: Number(character.spiritStones),
     hp: character.hp,
     atk: character.atk,
     def: character.def,
@@ -65,10 +68,7 @@ function buildState(
   };
 }
 
-// Tính tick server-authoritative dựa trên lastTickAt.
-// - Chế độ MEDITATE: cộng EXP theo số vòng đã hoàn thành, đột phá, giữ tiến trình dư.
-// - Chế độ COMBAT: chưa cộng gì (Phase 4), chỉ dời mốc thời gian.
-// Trả về CharacterState đã serialize để render/animate ở client.
+// Tick server-authoritative dựa trên lastTickAt.
 export async function runMeditationTick(
   character: CharacterWithTechniques,
 ): Promise<CharacterState> {
@@ -83,26 +83,35 @@ export async function runMeditationTick(
         data: { lastTickAt: new Date(now) },
       });
     }
-    return buildState(character, character.realm, Number(character.exp), 0, 0, 0);
+    return buildState(
+      character,
+      character.realm,
+      character.subLevel,
+      Number(character.exp),
+      0,
+      0,
+      0,
+    );
   }
 
   const techs = toActive(techStates(character));
   const res = applyMeditationByTime(
     character.realm,
+    character.subLevel,
     Number(character.exp),
     elapsedMs,
     techs,
   );
 
-  // Giữ lại phần thời gian dư (chưa đủ 1 vòng) bằng cách lùi lastTickAt.
   const newLastTick = now - res.leftoverMs;
 
   if (res.cycles > 0) {
     await prisma.character.update({
       where: { id: character.id },
       data: {
+        realm: res.newMajor,
+        subLevel: res.newSub,
         exp: BigInt(Math.floor(res.newExp)),
-        realm: res.newRealm,
         lastTickAt: new Date(newLastTick),
       },
     });
@@ -110,7 +119,8 @@ export async function runMeditationTick(
 
   return buildState(
     character,
-    res.newRealm,
+    res.newMajor,
+    res.newSub,
     Math.floor(res.newExp),
     res.leftoverMs,
     res.gained,

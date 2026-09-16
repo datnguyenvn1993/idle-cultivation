@@ -39,7 +39,10 @@ export function Dashboard({
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-jade">Tu Tiên Nhàn Rỗi</h1>
-          <p className="text-sm text-white/50">Đạo hữu {userName ?? state.name}</p>
+          <p className="text-sm text-white/50">
+            Đạo hữu {userName ?? state.name} ·{" "}
+            <span className="text-gold">{state.tierName}</span>
+          </p>
         </div>
         <SignOutButton />
       </header>
@@ -71,7 +74,8 @@ export function Dashboard({
       <section className="rounded-2xl bg-panel/80 p-5 shadow-xl ring-1 ring-white/5">
         <div className="mb-3 text-sm font-semibold text-white/70">Chỉ số</div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Stat label="Linh thạch" value={state.gold.toLocaleString()} />
+          <Stat label="Vàng" value={state.gold.toLocaleString()} />
+          <Stat label="Linh thạch" value={state.spiritStones.toLocaleString()} />
           <Stat label="Máu" value={state.hp} />
           <Stat label="Tấn công" value={state.atk} />
           <Stat label="Phòng thủ" value={state.def} />

@@ -15,17 +15,20 @@ export interface CharacterState {
   mode: "MEDITATE" | "COMBAT";
   element: ElementKey;
 
-  realm: number;
-  realmName: string;
-  exp: number; // exp trong cảnh giới hiện tại
-  expToNext: number; // ngưỡng đột phá (Infinity nếu cảnh giới cuối)
+  realm: number; // đại cảnh giới
+  subLevel: number; // tầng 1..9
+  tierName: string; // "Trúc Cơ · tầng 3"
+  isMax: boolean; // đã đạt tối đa chưa
+  exp: number; // tu vi trong tầng hiện tại
+  expToNext: number; // exp cần để lên tầng kế tiếp
 
   // Vòng luyện khí
   expPerCycle: number;
   cycleMs: number;
   cycleProgressMs: number; // đã trôi qua trong vòng hiện tại (0..cycleMs)
 
-  gold: number;
+  gold: number; // Vàng
+  spiritStones: number; // Linh thạch
 
   // Chỉ số
   hp: number;

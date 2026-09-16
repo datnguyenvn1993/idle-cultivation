@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncTick } from "@/app/actions";
-import { REALMS, realmName, ELEMENT_LABELS, type ElementKey } from "@/lib/game/balance";
-import { expPerCycle, expToNext, type ActiveTechnique } from "@/lib/game/engine";
+import {
+  expForTier,
+  isMaxTier,
+  tierName,
+  SUB_TIERS,
+  ELEMENT_LABELS,
+  type ElementKey,
+} from "@/lib/game/balance";
+import { expPerCycle, type ActiveTechnique } from "@/lib/game/engine";
 import type { CharacterState } from "@/lib/game/types";
 
 type Floater = { id: number; amount: number };
@@ -24,7 +31,8 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
 
   const cycleMs = initial.cycleMs;
 
-  const [realm, setRealm] = useState(initial.realm);
+  const [major, setMajor] = useState(initial.realm);
+  const [sub, setSub] = useState(initial.subLevel);
   const [exp, setExp] = useState(initial.exp);
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashKey, setFlashKey] = useState(0);
@@ -34,16 +42,17 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       : null,
   );
 
-  // Refs cho vòng lặp animation (không gây re-render mỗi frame).
-  const realmRef = useRef(initial.realm);
+  const majorRef = useRef(initial.realm);
+  const subRef = useRef(initial.subLevel);
   const expRef = useRef(initial.exp);
   const progressRef = useRef(initial.cycleProgressMs);
   const ringRef = useRef<SVGCircleElement | null>(null);
   const floaterId = useRef(0);
 
-  const perCycle = expPerCycle(realm, active);
-  const threshold = expToNext(realm);
-  const pctExp = isFinite(threshold) ? Math.min(100, (exp / threshold) * 100) : 100;
+  const perCycle = expPerCycle(major, active);
+  const threshold = expForTier(major, sub);
+  const atMax = isMaxTier(major, sub);
+  const pctExp = Math.min(100, (exp / threshold) * 100);
 
   const spawnFloater = useCallback((amount: number) => {
     const id = floaterId.current++;
@@ -52,43 +61,53 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   }, []);
 
   const completeCycle = useCallback(() => {
-    const pc = expPerCycle(realmRef.current, active);
+    if (isMaxTier(majorRef.current, subRef.current)) return;
+    const pc = expPerCycle(majorRef.current, active);
     let ne = expRef.current + pc;
-    let r = realmRef.current;
-    let broke = false;
-    while (r < REALMS.length - 1) {
-      const need = REALMS[r].expToNext;
-      if (!isFinite(need) || ne < need) break;
+    let mj = majorRef.current;
+    let sb = subRef.current;
+    const majorBefore = mj;
+    while (!isMaxTier(mj, sb)) {
+      const need = expForTier(mj, sb);
+      if (ne < need) break;
       ne -= need;
-      r += 1;
-      broke = true;
+      if (sb < SUB_TIERS) sb += 1;
+      else {
+        mj += 1;
+        sb = 1;
+      }
     }
+    if (isMaxTier(mj, sb)) ne = Math.min(ne, expForTier(mj, sb));
+
     expRef.current = ne;
     setExp(ne);
-    if (r !== realmRef.current) {
-      realmRef.current = r;
-      setRealm(r);
+    if (mj !== majorRef.current || sb !== subRef.current) {
+      majorRef.current = mj;
+      subRef.current = sb;
+      setMajor(mj);
+      setSub(sb);
     }
-    if (broke) setFlashKey((k) => k + 1);
+    if (mj !== majorBefore) setFlashKey((k) => k + 1); // lóe sáng khi đột phá ĐẠI cảnh giới
     spawnFloater(pc);
   }, [active, spawnFloater]);
 
-  // Vòng lặp animation: đổ đầy thanh vòng luyện khí, hoàn thành thì cộng EXP.
+  // Vòng lặp animation
   useEffect(() => {
     let raf = 0;
     let last = performance.now();
     const frame = (ts: number) => {
-      // clamp dt: khi tab ẩn rAF dừng; lúc quay lại để server sync xử lý, không cộng dồn ở client.
       const dt = Math.min(ts - last, 1000);
       last = ts;
-      let p = progressRef.current + dt;
-      while (p >= cycleMs) {
-        p -= cycleMs;
-        completeCycle();
-      }
-      progressRef.current = p;
-      if (ringRef.current) {
-        ringRef.current.style.strokeDashoffset = String(RING_C * (1 - p / cycleMs));
+      if (!isMaxTier(majorRef.current, subRef.current)) {
+        let p = progressRef.current + dt;
+        while (p >= cycleMs) {
+          p -= cycleMs;
+          completeCycle();
+        }
+        progressRef.current = p;
+        if (ringRef.current) {
+          ringRef.current.style.strokeDashoffset = String(RING_C * (1 - p / cycleMs));
+        }
       }
       raf = requestAnimationFrame(frame);
     };
@@ -96,15 +115,17 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
     return () => cancelAnimationFrame(raf);
   }, [cycleMs, completeCycle]);
 
-  // Đồng bộ server-authoritative: định kỳ 60s + khi quay lại tab.
+  // Đồng bộ server-authoritative
   const doSync = useCallback(async () => {
     try {
       const s = await syncTick();
       if (s.mode !== "MEDITATE") return;
-      realmRef.current = s.realm;
+      majorRef.current = s.realm;
+      subRef.current = s.subLevel;
       expRef.current = s.exp;
       progressRef.current = s.cycleProgressMs;
-      setRealm(s.realm);
+      setMajor(s.realm);
+      setSub(s.subLevel);
       setExp(s.exp);
     } catch {
       /* bỏ qua lỗi mạng tạm thời */
@@ -144,7 +165,6 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
 
       {/* Sân khấu thiền */}
       <div className="relative mx-auto flex h-[300px] w-full max-w-[300px] items-center justify-center">
-        {/* Hào quang nền */}
         <div
           className="animate-qi-breathe absolute h-[240px] w-[240px] rounded-full"
           style={{
@@ -152,11 +172,9 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
               "radial-gradient(circle, rgba(61,220,151,0.35) 0%, rgba(139,123,216,0.15) 45%, transparent 70%)",
           }}
         />
-        {/* Vòng khí xoay */}
         <div className="animate-qi-spin absolute h-[250px] w-[250px] rounded-full border border-dashed border-jade/30" />
         <div className="animate-qi-spin-rev absolute h-[205px] w-[205px] rounded-full border border-dashed border-mystic/30" />
 
-        {/* Hạt khí bay lên */}
         {[0, 1, 2, 3, 4].map((i) => (
           <span
             key={i}
@@ -208,16 +226,12 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
               <stop offset="100%" stopColor="#2a3350" />
             </linearGradient>
           </defs>
-          {/* bệ ngồi */}
           <ellipse cx="60" cy="98" rx="36" ry="9" fill="rgba(139,123,216,0.25)" />
-          {/* chân xếp bằng */}
           <path d="M26 92 Q60 78 94 92 Q60 104 26 92 Z" fill="#39456a" />
-          {/* thân + áo choàng */}
           <path
             d="M60 42 C40 46 38 82 46 92 L74 92 C82 82 80 46 60 42 Z"
             fill="url(#robe)"
           />
-          {/* tay đặt trước bụng (thiền định) */}
           <path
             d="M46 74 Q60 86 74 74"
             fill="none"
@@ -225,16 +239,18 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
             strokeWidth="6"
             strokeLinecap="round"
           />
-          {/* cổ */}
           <rect x="55" y="30" width="10" height="12" rx="4" fill="#e8c9a8" />
-          {/* đầu */}
           <circle cx="60" cy="26" r="12" fill="#f0d3b0" />
-          {/* búi tóc */}
           <circle cx="60" cy="14" r="5" fill="#2a2a3a" />
-          <path d="M48 24 Q60 12 72 24" fill="none" stroke="#2a2a3a" strokeWidth="4" strokeLinecap="round" />
+          <path
+            d="M48 24 Q60 12 72 24"
+            fill="none"
+            stroke="#2a2a3a"
+            strokeWidth="4"
+            strokeLinecap="round"
+          />
         </svg>
 
-        {/* Lóe sáng đột phá */}
         {flashKey > 0 && (
           <div
             key={flashKey}
@@ -246,7 +262,6 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
           />
         )}
 
-        {/* Số EXP bay lên */}
         <div className="pointer-events-none absolute left-1/2 top-8">
           {floaters.map((f) => (
             <span
@@ -260,10 +275,10 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         </div>
       </div>
 
-      {/* Cảnh giới + thanh EXP */}
+      {/* Cảnh giới · tầng + thanh EXP */}
       <div className="mt-2">
         <div className="mb-1 flex items-end justify-between">
-          <span className="text-lg font-bold text-gold">{realmName(realm)}</span>
+          <span className="text-lg font-bold text-gold">{tierName(major, sub)}</span>
           <span className="text-xs text-white/50">
             Ngũ hành:{" "}
             <b className="text-mystic">{ELEMENT_LABELS[initial.element as ElementKey]}</b>
@@ -277,8 +292,9 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         </div>
         <div className="mt-1 flex justify-between text-xs text-white/40">
           <span>
-            {Math.floor(exp).toLocaleString()} /{" "}
-            {isFinite(threshold) ? threshold.toLocaleString() : "∞"} EXP
+            {atMax
+              ? "Đã đạt đỉnh phong"
+              : `${Math.floor(exp).toLocaleString()} / ${threshold.toLocaleString()} EXP`}
           </span>
           <span>
             +{perCycle.toLocaleString()} EXP / vòng · {(cycleMs / 1000).toFixed(0)}s/vòng

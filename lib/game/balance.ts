@@ -61,6 +61,39 @@ export const BASE_EXP_PER_CYCLE = 5;
 export const MAX_OFFLINE_SECONDS = 24 * 60 * 60;
 
 // ---------------------------------------------------------------------------
+// CÂY EXP — mỗi đại cảnh giới có 9 tầng.
+//   nền(major)          = EXP_BASE × MAJOR_JUMP^major   (mỗi đại cảnh giới ×10)
+//   tầng 1..8           = nền × tầng                     (tuyến tính trong cảnh giới)
+//   tầng 9 (đột phá)    = nền × 9 × BREAKTHROUGH_MULT    (bức tường đại cảnh giới)
+// ---------------------------------------------------------------------------
+export const SUB_TIERS = 9;
+export const EXP_BASE = 20;
+export const MAJOR_JUMP = 10;
+export const BREAKTHROUGH_MULT = 4;
+export const MAX_MAJOR = REALMS.length - 1;
+
+// EXP cần để hoàn thành (major, sub) và lên tầng kế tiếp.
+export function expForTier(major: number, sub: number): number {
+  const m = Math.min(Math.max(major, 0), MAX_MAJOR);
+  const majorBase = EXP_BASE * Math.pow(MAJOR_JUMP, m);
+  if (sub >= SUB_TIERS) {
+    return Math.round(majorBase * SUB_TIERS * BREAKTHROUGH_MULT);
+  }
+  return Math.round(majorBase * Math.max(1, sub));
+}
+
+// Đã đạt tối đa (đại cảnh giới cuối, tầng 9)?
+export function isMaxTier(major: number, sub: number): boolean {
+  return major >= MAX_MAJOR && sub >= SUB_TIERS;
+}
+
+// Tên hiển thị: "Trúc Cơ · tầng 3".
+export function tierName(major: number, sub: number): string {
+  const name = REALMS[Math.min(Math.max(major, 0), MAX_MAJOR)]?.name ?? "Không rõ";
+  return `${name} · tầng ${Math.min(sub, SUB_TIERS)}`;
+}
+
+// ---------------------------------------------------------------------------
 // Ngũ hành tương khắc: OVERCOMES[a] = b nghĩa là a khắc b.
 // Hỏa khắc Kim, Kim khắc Mộc, Mộc khắc Thổ, Thổ khắc Thủy, Thủy khắc Hỏa.
 // ---------------------------------------------------------------------------
