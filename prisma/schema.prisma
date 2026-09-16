@@ -7,8 +7,11 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
+  // Tên biến khớp với tích hợp Neon của Vercel (Storage → Neon):
+  //   DATABASE_URL          = pooled (dùng khi app chạy)
+  //   DATABASE_URL_UNPOOLED = direct (dùng cho prisma db push / migrate)
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 // =====================================================================
