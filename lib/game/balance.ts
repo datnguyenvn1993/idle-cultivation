@@ -94,6 +94,29 @@ export function tierName(major: number, sub: number): string {
 }
 
 // ---------------------------------------------------------------------------
+// CÔNG PHÁP
+// ---------------------------------------------------------------------------
+
+// Linh thạch tặng khởi đầu để người chơi thử nâng cấp công pháp.
+export const STARTER_STONES = 500;
+
+// Số công pháp được kích hoạt cùng lúc, tăng theo đại cảnh giới.
+export function activeSlots(major: number): number {
+  return 1 + Math.min(major, MAX_MAJOR);
+}
+
+// Linh thạch để nâng công pháp từ `level` -> `level + 1`.
+export function techniqueLevelCost(level: number, rarity = 1): number {
+  return Math.round(40 * rarity * level * Math.pow(1.35, level - 1));
+}
+
+export const RARITY_LABELS: Record<number, string> = {
+  1: "Thường",
+  2: "Hiếm",
+  3: "Siêu hiếm",
+};
+
+// ---------------------------------------------------------------------------
 // Ngũ hành tương khắc: OVERCOMES[a] = b nghĩa là a khắc b.
 // Hỏa khắc Kim, Kim khắc Mộc, Mộc khắc Thổ, Thổ khắc Thủy, Thủy khắc Hỏa.
 // ---------------------------------------------------------------------------

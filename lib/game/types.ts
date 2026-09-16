@@ -9,6 +9,27 @@ export interface TechniqueState {
   active: boolean;
 }
 
+// Công pháp hiển thị ở panel (gộp catalog + sở hữu của người chơi).
+export interface TechniqueView {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  element: ElementKey | null;
+  coverKey: string;
+  rarity: number;
+  unlockRealm: number;
+  maxLevel: number;
+  unlocked: boolean; // đại cảnh giới đủ để lĩnh ngộ
+  owned: boolean; // đã lĩnh ngộ
+  level: number; // 0 nếu chưa học
+  active: boolean;
+  multiplierNow: number; // expMultiplier^level
+  multiplierNext: number; // ở cấp +1
+  levelUpCost: number; // linh thạch để lên cấp
+  atMaxLevel: boolean;
+}
+
 // Trạng thái nhân vật đã "serialize" (BigInt -> number) để truyền client.
 export interface CharacterState {
   name: string;

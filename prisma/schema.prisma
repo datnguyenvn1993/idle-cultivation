@@ -114,6 +114,9 @@ model Character {
   highestStage Int @default(0)
   currentStage Int @default(1)
 
+  // Quà khởi đầu (linh thạch) đã trao chưa
+  starterGranted Boolean @default(false)
+
   techniques CharTechnique[]
   inventory  InventoryItem[]
 
@@ -121,14 +124,19 @@ model Character {
   updatedAt DateTime @updatedAt
 }
 
+// Thư viện công pháp (catalog). Thêm công pháp mới = thêm 1 dòng vào bảng này.
 model Technique {
-  id          String  @id @default(cuid())
-  key         String  @unique
-  name        String
-  description String?
-  expMultiplier Float @default(1.1) // hệ số nhân EXP mỗi cấp khi active
-  unlockRealm Int     @default(0)
-  maxLevel    Int     @default(10)
+  id            String   @id @default(cuid())
+  key           String   @unique
+  name          String
+  description   String?
+  expMultiplier Float    @default(1.1) // hệ số nhân EXP (lũy thừa theo cấp) khi active
+  unlockRealm   Int      @default(0) // đại cảnh giới tối thiểu để lĩnh ngộ
+  maxLevel      Int      @default(10)
+  element       Element? // hệ (null = vô thuộc tính)
+  coverKey      String   @default("azure") // biến thể ảnh bìa (SVG)
+  rarity        Int      @default(1) // 1 Thường, 2 Hiếm, 3 Siêu hiếm
+  sortOrder     Int      @default(0)
 
   chars CharTechnique[]
 }

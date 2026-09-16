@@ -1,8 +1,9 @@
 import { auth } from "@/auth";
 import { SignInButton } from "@/components/auth-buttons";
-import { Dashboard } from "@/components/dashboard";
+import { GameShell } from "@/components/game-shell";
 import { getOrCreateCharacter } from "@/lib/game/character";
 import { runMeditationTick } from "@/lib/game/tick";
+import { ensureTechniqueCatalog, getTechniquesView } from "@/lib/game/techniques";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,11 @@ export default async function Home() {
   }
 
   const character = await getOrCreateCharacter(session.user.id);
+  await ensureTechniqueCatalog();
   const state = await runMeditationTick(character);
+  const techniques = await getTechniquesView(character.id, state.realm);
 
-  return <Dashboard state={state} userName={session.user.name} />;
+  return (
+    <GameShell state={state} techniques={techniques} userName={session.user.name} />
+  );
 }
