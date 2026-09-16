@@ -18,3 +18,60 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* ---- Hiệu ứng thiền / luyện khí ---- */
+
+/* Khí xoay quanh người tu luyện */
+@keyframes qi-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes qi-spin-rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+/* Nhịp thở của hào quang */
+@keyframes qi-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.08); opacity: 0.9; }
+}
+
+/* Người tu luyện phập phồng nhẹ */
+@keyframes sit-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* Hạt khí bay lên */
+@keyframes qi-rise {
+  0% { transform: translateY(10px) scale(0.6); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-46px) scale(1); opacity: 0; }
+}
+
+/* Số EXP bay lên khi hoàn thành 1 vòng */
+@keyframes exp-float {
+  0% { transform: translate(-50%, 0) scale(0.8); opacity: 0; }
+  15% { opacity: 1; transform: translate(-50%, -6px) scale(1); }
+  100% { transform: translate(-50%, -52px) scale(1); opacity: 0; }
+}
+
+/* Lóe sáng khi đột phá cảnh giới */
+@keyframes breakthrough-flash {
+  0% { opacity: 0; transform: scale(0.4); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.8); }
+}
+
+.animate-qi-spin { animation: qi-spin 14s linear infinite; }
+.animate-qi-spin-rev { animation: qi-spin-rev 9s linear infinite; }
+.animate-qi-breathe { animation: qi-breathe 3.2s ease-in-out infinite; }
+.animate-sit-breathe { animation: sit-breathe 3.2s ease-in-out infinite; }
+.animate-exp-float { animation: exp-float 1.25s ease-out forwards; }
+.animate-breakthrough { animation: breakthrough-flash 0.9s ease-out forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-qi-spin, .animate-qi-spin-rev, .animate-qi-breathe,
+  .animate-sit-breathe { animation: none; }
+}

@@ -47,8 +47,15 @@ export const REALMS: Realm[] = [
   { name: "Độ Kiếp",       expToNext: Infinity,   expRate: 40.0, statBonus: s(120000, 13000, 7600, 13000, 13000, 6600, 6600) },
 ];
 
-// EXP cơ bản mỗi giây khi thiền (trước khi nhân hệ số cảnh giới + công pháp).
-export const BASE_EXP_PER_SEC = 1.0;
+// ---------------------------------------------------------------------------
+// MÔ HÌNH VÒNG LUYỆN KHÍ (cycle)
+// Mỗi vòng luyện khí kéo dài CYCLE_SECONDS giây; hoàn thành 1 vòng cộng EXP.
+// Đây là "đơn vị" để nhân hệ số tâm pháp / buff / talent về sau.
+// ---------------------------------------------------------------------------
+export const CYCLE_SECONDS = 5;
+
+// EXP gốc mỗi vòng (trước khi nhân cảnh giới + tâm pháp + buff).
+export const BASE_EXP_PER_CYCLE = 5;
 
 // Giới hạn thời gian offline được tính (giây). Ví dụ 24h.
 export const MAX_OFFLINE_SECONDS = 24 * 60 * 60;

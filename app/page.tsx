@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { SignInButton } from "@/components/auth-buttons";
 import { Dashboard } from "@/components/dashboard";
 import { getOrCreateCharacter } from "@/lib/game/character";
+import { runMeditationTick } from "@/lib/game/tick";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export default async function Home() {
   }
 
   const character = await getOrCreateCharacter(session.user.id);
+  const state = await runMeditationTick(character);
 
-  return <Dashboard character={character} userName={session.user.name} />;
+  return <Dashboard state={state} userName={session.user.name} />;
 }
