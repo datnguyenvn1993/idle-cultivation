@@ -128,6 +128,7 @@ model Character {
   // Quà khởi đầu đã trao chưa; mốc thời gian cho "Tập trung cao độ"
   starterGranted Boolean   @default(false)
   lastFocusAt    DateTime?
+  combatReset    Boolean   @default(false) // đã chuẩn hóa tiến trình ải (flag từng ải) chưa
 
   techniques CharTechnique[]
   inventory  InventoryItem[]

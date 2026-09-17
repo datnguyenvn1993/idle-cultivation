@@ -123,6 +123,10 @@ export function CombatView({ initial }: { initial: CharacterState }) {
         <div className="mt-1 text-xs text-white/50">
           ❤️ {st.monsterHp.toLocaleString()} · ⚔️ {st.monsterDps.toLocaleString()}/s
         </div>
+        <div className="text-xs text-white/40">
+          🛡️ Thủ VL {st.monsterPRes.toLocaleString()} · Thủ phép{" "}
+          {st.monsterMRes.toLocaleString()}
+        </div>
 
         {/* thanh tiến độ clear */}
         <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-white/10">

@@ -36,6 +36,20 @@ export async function getOrCreateCharacter(userId: string) {
     });
   }
 
+  // Chuẩn hóa tiến trình ải (flag từng ải) — reset về ải 1 cho tài khoản cũ.
+  if (!character.combatReset) {
+    character = await prisma.character.update({
+      where: { id: character.id },
+      data: {
+        highestStage: 1,
+        currentStage: 1,
+        stageLocked: false,
+        combatReset: true,
+      },
+      include: includeTech,
+    });
+  }
+
   return character;
 }
 

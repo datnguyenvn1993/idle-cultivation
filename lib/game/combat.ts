@@ -24,6 +24,8 @@ export interface StageSpec {
   realm: number;
   monsterHp: number;
   monsterDps: number;
+  monsterPRes: number; // thủ vật lý của quái (giảm công vật lý người chơi)
+  monsterMRes: number; // thủ phép của quái (giảm công phép người chơi)
   element: ElementKey;
   goldReward: number;
 }
@@ -42,6 +44,8 @@ export function stageSpec(stage: number): StageSpec {
     realm,
     monsterHp: Math.round(expDPS * TARGET_CLEAR_TIME * factor),
     monsterDps: Math.max(1, Math.round((expEHP / TARGET_SURVIVE_TIME) * factor)),
+    monsterPRes: Math.round(b.pRes * factor),
+    monsterMRes: Math.round(b.mRes * factor),
     element: ELEMENTS[s % 5],
     goldReward: stageGoldReward(s),
   };
@@ -68,9 +72,13 @@ export function simulateStage(
   const redM = stats.mRes / (stats.mRes + K);
   const reduction = Math.min(MAX_DMG_REDUCTION, (redP + redM) / 2);
 
+  // Công người chơi bị giảm bởi THỦ của quái (đối xứng với việc quái bị giảm bởi thủ người chơi).
+  const monRedP = Math.min(MAX_DMG_REDUCTION, spec.monsterPRes / (spec.monsterPRes + K));
+  const monRedM = Math.min(MAX_DMG_REDUCTION, spec.monsterMRes / (spec.monsterMRes + K));
+
   const elemMult = elementMultiplier(playerElement, spec.element);
-  const physDps = stats.pPower * stats.atkSpeed; // thể tu, không ngũ hành
-  const magicDps = stats.mPower * stats.atkSpeed * elemMult; // pháp tu, có ngũ hành
+  const physDps = stats.pPower * stats.atkSpeed * (1 - monRedP); // thể tu vs thủ vật lý quái
+  const magicDps = stats.mPower * stats.atkSpeed * elemMult * (1 - monRedM); // pháp tu vs thủ phép quái
   const dps = physDps + magicDps;
 
   const clearTime = Math.max(MIN_CLEAR_TIME, spec.monsterHp / Math.max(dps, 1));

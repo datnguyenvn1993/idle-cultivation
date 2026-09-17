@@ -89,6 +89,8 @@ export interface StageInfo {
   element: ElementKey;
   monsterHp: number;
   monsterDps: number;
+  monsterPRes: number;
+  monsterMRes: number;
   clearTime: number;
   canSurvive: boolean;
   goldPerSec: number;

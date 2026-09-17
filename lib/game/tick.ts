@@ -19,12 +19,8 @@ import {
   cycleDurationMs,
   type ActiveTechnique,
 } from "./engine";
-import {
-  simulateStage,
-  stageSpec,
-  powerRating,
-  maxSurvivableStage,
-} from "./combat";
+import { simulateStage, stageSpec, powerRating } from "./combat";
+import { MAX_STAGE } from "./balance";
 import type { CharacterState, StageInfo, TechniqueState } from "./types";
 import type { CharacterWithTechniques } from "./character";
 
@@ -75,7 +71,8 @@ function buildState(
   const stats = computeStats(major, alloc);
   const element = character.element as ElementKey;
 
-  const maxStage = maxSurvivableStage(stats, element);
+  // maxStage = ải cao nhất ĐÃ CLEAR (mở khóa) — chỉ tăng khi thực sự vượt ải.
+  const maxStage = Math.max(1, character.highestStage);
   const curStage = Math.max(1, Math.min(character.currentStage, maxStage));
   const spec = stageSpec(curStage);
   const sim = simulateStage(stats, element, spec);
@@ -85,6 +82,8 @@ function buildState(
     element: spec.element,
     monsterHp: spec.monsterHp,
     monsterDps: spec.monsterDps,
+    monsterPRes: spec.monsterPRes,
+    monsterMRes: spec.monsterMRes,
     clearTime: sim.clearTime,
     canSurvive: sim.canSurvive,
     goldPerSec: sim.goldPerSec,
@@ -117,7 +116,7 @@ function buildState(
     pRes: stats.pRes,
     mRes: stats.mRes,
     atkSpeed: stats.atkSpeed,
-    highestStage: Math.max(character.highestStage, maxStage),
+    highestStage: maxStage,
     currentStage: curStage,
     stageLocked: character.stageLocked,
     maxStage,
@@ -234,36 +233,56 @@ export async function runCombatTick(
   const rate = offline ? OFFLINE_RATE : 1;
   const sec = effElapsed / 1000;
 
-  const top = maxSurvivableStage(stats, element);
-  const cur = character.stageLocked
-    ? Math.max(1, Math.min(character.currentStage, top))
-    : top;
+  let cleared = Math.max(1, character.highestStage); // ải cao nhất đã clear
+  let timeLeft = sec;
+  let goldRaw = 0;
 
-  const spec = stageSpec(cur);
-  const sim = simulateStage(stats, element, spec);
-
-  let goldGained = 0;
-  let leftoverMs = effElapsed;
-  if (sim.canSurvive && sec > 0) {
-    const clears = Math.floor(sec / sim.clearTime);
-    goldGained = Math.floor(clears * spec.goldReward * rate);
-    leftoverMs = effElapsed - clears * sim.clearTime * 1000;
+  // 1) Auto: tiến ải TUẦN TỰ — clear ải (cleared+1) từng cái một mới mở ải kế.
+  if (!character.stageLocked) {
+    while (cleared < MAX_STAGE) {
+      const nextSpec = stageSpec(cleared + 1);
+      const nextSim = simulateStage(stats, element, nextSpec);
+      if (!nextSim.canSurvive) break; // gặp tường: chưa đủ sức ải kế
+      if (timeLeft < nextSim.clearTime) break; // không đủ thời gian cho 1 lượt
+      timeLeft -= nextSim.clearTime;
+      goldRaw += nextSpec.goldReward;
+      cleared += 1; // mở khóa ải mới (flag)
+    }
   }
+
+  // 2) Farm thời gian còn lại tại ải đang chọn (đã clear).
+  const farmStage = character.stageLocked
+    ? Math.max(1, Math.min(character.currentStage, cleared))
+    : cleared;
+  const fSpec = stageSpec(farmStage);
+  const fSim = simulateStage(stats, element, fSpec);
+  let progressed = cleared > Math.max(1, character.highestStage);
+  if (fSim.canSurvive && timeLeft > 0) {
+    const clears = Math.floor(timeLeft / fSim.clearTime);
+    if (clears > 0) {
+      goldRaw += clears * fSpec.goldReward;
+      timeLeft -= clears * fSim.clearTime;
+      progressed = true;
+    }
+  }
+
+  const goldGained = Math.floor(goldRaw * rate);
   const newGold = Number(character.gold) + goldGained;
-  const newLast = sim.canSurvive ? now - Math.max(0, leftoverMs) : now;
+  const newCur = character.stageLocked ? farmStage : cleared;
+  const newLast = progressed ? now - Math.max(0, timeLeft * 1000) : now;
 
   await prisma.character.update({
     where: { id: character.id },
     data: {
       gold: BigInt(newGold),
-      highestStage: Math.max(character.highestStage, top),
-      currentStage: cur,
+      highestStage: cleared,
+      currentStage: newCur,
       lastTickAt: new Date(newLast),
     },
   });
   character.gold = BigInt(newGold);
-  character.highestStage = Math.max(character.highestStage, top);
-  character.currentStage = cur;
+  character.highestStage = cleared;
+  character.currentStage = newCur;
 
   return buildState(
     character,
