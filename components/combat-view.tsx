@@ -121,7 +121,9 @@ export function CombatView({ initial }: { initial: CharacterState }) {
           <span className="text-mystic">[{ELEMENT_LABELS[st.element]}]</span>
         </div>
         <div className="mt-1 text-xs text-white/50">
-          ❤️ {st.monsterHp.toLocaleString()} · ⚔️ {st.monsterDps.toLocaleString()}/s
+          ❤️ {st.monsterHp.toLocaleString()} · ⚔️ Công{" "}
+          {st.monsterAtkType === "PHYS" ? "vật lý" : "phép"}{" "}
+          {st.monsterDps.toLocaleString()}/s
         </div>
         <div className="text-xs text-white/40">
           🛡️ Thủ VL {st.monsterPRes.toLocaleString()} · Thủ phép{" "}
@@ -148,23 +150,29 @@ export function CombatView({ initial }: { initial: CharacterState }) {
       </div>
 
       {/* Kết quả mô phỏng */}
-      {st.canSurvive ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-          <div className="rounded-lg bg-white/5 px-3 py-2">
-            <div className="text-[10px] uppercase text-white/40">Thời gian clear</div>
-            <div className="font-semibold">{st.clearTime.toFixed(1)}s</div>
+      {(() => {
+        const limit = isFinite(st.timeLimit) ? `${st.timeLimit.toFixed(1)}s` : "∞";
+        return st.canSurvive ? (
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase text-white/40">Giết / Hạn</div>
+              <div className="font-semibold">
+                {st.clearTime.toFixed(1)}s{" "}
+                <span className="text-white/40">/ {limit}</span>
+              </div>
+            </div>
+            <div className="rounded-lg bg-white/5 px-3 py-2">
+              <div className="text-[10px] uppercase text-white/40">Vàng / giây</div>
+              <div className="font-semibold text-gold">{st.goldPerSec.toFixed(1)} 🪙</div>
+            </div>
           </div>
-          <div className="rounded-lg bg-white/5 px-3 py-2">
-            <div className="text-[10px] uppercase text-white/40">Vàng / giây</div>
-            <div className="font-semibold text-gold">{st.goldPerSec.toFixed(1)} 🪙</div>
+        ) : (
+          <div className="mt-3 rounded-lg bg-red-500/15 px-3 py-2 text-center text-sm text-red-300">
+            ⚠️ Không giết kịp trong hạn ({st.clearTime.toFixed(1)}s &gt; {limit}). Hết máu
+            trước khi hạ quái. Hãy tu luyện, phân bổ điểm hoặc chọn ải thấp hơn.
           </div>
-        </div>
-      ) : (
-        <div className="mt-3 rounded-lg bg-red-500/15 px-3 py-2 text-center text-sm text-red-300">
-          ⚠️ Chưa đủ sức qua ải này. Hãy tu luyện lên cảnh giới, phân bổ điểm chỉ số
-          hoặc chọn ải thấp hơn.
-        </div>
-      )}
+        );
+      })()}
 
       {/* Lực chiến + auto */}
       <div className="mt-3 flex items-center justify-between rounded-lg bg-white/5 px-3 py-2 text-sm">

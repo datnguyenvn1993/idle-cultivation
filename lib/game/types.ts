@@ -89,11 +89,13 @@ export interface StageInfo {
   element: ElementKey;
   monsterHp: number;
   monsterDps: number;
+  monsterAtkType: "PHYS" | "MAGIC"; // quái đánh vật lý hay phép
   monsterPRes: number;
   monsterMRes: number;
   clearTime: number;
-  canSurvive: boolean;
+  timeLimit: number; // hạn giết (giây) trước khi hết máu
+  canSurvive: boolean; // giết kịp trong hạn?
   goldPerSec: number;
   goldReward: number;
-  reduction: number; // % giảm sát thương của người chơi ở ải này
+  reduction: number; // % giảm sát thương của người chơi trước đòn của quái này
 }

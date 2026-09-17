@@ -19,11 +19,14 @@ import { elementMultiplier } from "./engine";
 
 const ELEMENTS: ElementKey[] = ["KIM", "MOC", "THUY", "HOA", "THO"];
 
+export type AtkType = "PHYS" | "MAGIC";
+
 export interface StageSpec {
   index: number;
   realm: number;
   monsterHp: number;
-  monsterDps: number;
+  monsterDps: number; // sát thương/giây của quái
+  atkType: AtkType; // quái đánh vật lý HOẶC phép (một loại)
   monsterPRes: number; // thủ vật lý của quái (giảm công vật lý người chơi)
   monsterMRes: number; // thủ phép của quái (giảm công phép người chơi)
   element: ElementKey;
@@ -44,6 +47,7 @@ export function stageSpec(stage: number): StageSpec {
     realm,
     monsterHp: Math.round(expDPS * TARGET_CLEAR_TIME * factor),
     monsterDps: Math.max(1, Math.round((expEHP / TARGET_SURVIVE_TIME) * factor)),
+    atkType: s % 2 === 0 ? "MAGIC" : "PHYS",
     monsterPRes: Math.round(b.pRes * factor),
     monsterMRes: Math.round(b.mRes * factor),
     element: ELEMENTS[s % 5],
@@ -56,9 +60,10 @@ export interface CombatResult {
   physDps: number;
   magicDps: number;
   elemMult: number;
-  reduction: number; // % giảm sát thương nhận vào (0..MAX_DMG_REDUCTION)
+  reduction: number; // % giảm sát thương nhận vào (theo loại đòn của quái)
   clearTime: number; // giây để hạ 1 quái
-  canSurvive: boolean;
+  timeLimit: number; // hạn thời gian phải giết xong (1 cây máu đầy) trước khi chết
+  canSurvive: boolean; // giết kịp trong hạn?
   goldPerSec: number;
 }
 
@@ -68,11 +73,12 @@ export function simulateStage(
   spec: StageSpec,
 ): CombatResult {
   const K = mitigationK(spec.realm);
-  const redP = stats.pRes / (stats.pRes + K);
-  const redM = stats.mRes / (stats.mRes + K);
-  const reduction = Math.min(MAX_DMG_REDUCTION, (redP + redM) / 2);
+  const redP = Math.min(MAX_DMG_REDUCTION, stats.pRes / (stats.pRes + K));
+  const redM = Math.min(MAX_DMG_REDUCTION, stats.mRes / (stats.mRes + K));
+  // Quái đánh 1 loại -> dùng đúng thủ tương ứng của người chơi.
+  const incomingRed = spec.atkType === "PHYS" ? redP : redM;
 
-  // Công người chơi bị giảm bởi THỦ của quái (đối xứng với việc quái bị giảm bởi thủ người chơi).
+  // Công người chơi bị giảm bởi THỦ của quái (đối xứng).
   const monRedP = Math.min(MAX_DMG_REDUCTION, spec.monsterPRes / (spec.monsterPRes + K));
   const monRedM = Math.min(MAX_DMG_REDUCTION, spec.monsterMRes / (spec.monsterMRes + K));
 
@@ -82,11 +88,24 @@ export function simulateStage(
   const dps = physDps + magicDps;
 
   const clearTime = Math.max(MIN_CLEAR_TIME, spec.monsterHp / Math.max(dps, 1));
-  const incoming = spec.monsterDps * (1 - reduction);
-  const canSurvive = incoming * clearTime < stats.hp;
+
+  // Mỗi trận 1 cây máu đầy: hạn giết = máu người chơi / sát thương thực nhận mỗi giây.
+  const incoming = spec.monsterDps * (1 - incomingRed);
+  const timeLimit = incoming > 0 ? stats.hp / incoming : Infinity;
+  const canSurvive = clearTime < timeLimit; // phải giết xong trước khi hết máu
   const goldPerSec = canSurvive ? spec.goldReward / clearTime : 0;
 
-  return { dps, physDps, magicDps, elemMult, reduction, clearTime, canSurvive, goldPerSec };
+  return {
+    dps,
+    physDps,
+    magicDps,
+    elemMult,
+    reduction: incomingRed,
+    clearTime,
+    timeLimit,
+    canSurvive,
+    goldPerSec,
+  };
 }
 
 // Chỉ số "Lực chiến" để hiển thị (không dùng để tính clear).
