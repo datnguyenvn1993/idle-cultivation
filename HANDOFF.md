@@ -213,9 +213,12 @@ Guardrails: (1) quái neo theo expPower cảnh giới; (2) MIN_CLEAR_TIME; (3) t
 Cần: seed `Stage` theo công thức (không nhập tay), `Character.combatStage`, tick vượt ải riêng, `powerRating(stats)`.
 Nhớ: **vượt ải KHÔNG kiếm EXP** (tách 2 vòng lặp).
 
-### Phase D — Trang bị (tích lũy)
-- Mỗi đại cảnh giới × 3 phẩm (Thường/Hiếm/Siêu hiếm) × mỗi loại (vũ khí/giáp/phụ kiện...).
-- Đánh quái rơi **mảnh** → gom đủ **lên cấp** loại đó (idle merge). Chỉ số nhân vật = **TỔNG** chỉ số mọi trang bị (cộng vào `computeStats`).
+### Phase D — Trang bị (tích lũy) — DB đã DỰNG SẴN, chờ gắn drop/UI
+- **DB đã có**: model `Equipment` (catalog: key/name/slot/rarity/realm/element/statBonus/`dropStageMin`/`dropStageMax`/`dropRate`/sortOrder) + `CharEquipment` (shards/level/equipped). Catalog code: `lib/game/equipment-data.ts`; upsert: `ensureEquipmentCatalog()` (gọi trong page.tsx).
+- **Cần làm**: (1) trong `runCombatTick`, mỗi lần clear ải → duyệt Equipment có `dropStageMin..Max` chứa ải đó → tung `dropRate` → +shards vào `CharEquipment`. (2) Tích lũy shards → lên cấp (đổi shards). (3) Chỉ số nhân vật = **TỔNG** statBonus của trang bị `equipped` → cộng vào `computeStats`. (4) UI tab "Trang Bị".
+- Mỗi đại cảnh giới × 3 phẩm (Thường/Hiếm/Siêu hiếm) × loại (weapon/armor/accessory...).
+
+**Cân bằng combat (balance.ts):** `MONSTER_DIFFICULTY` (máu quái ×N, đang 3), `GOLD_BASE`/`GOLD_GROWTH` (vàng scarce: 1 & 1.08), `TARGET_CLEAR_TIME`/`TARGET_SURVIVE_TIME`. **Reset toàn bộ nhân vật**: tăng `RESET_VERSION` trong `lib/game/character.ts`.
 
 ### Phase E — Kỹ năng (2 nhánh) + Talent
 - **Thể tu** (vật lý): buff pPower/hp/def (không ngũ hành).
