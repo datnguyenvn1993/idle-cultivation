@@ -183,8 +183,9 @@ Tất cả hằng số ở `lib/game/balance.ts`.
 
 ## 9. Roadmap còn lại
 
-### Phase C — Vượt ải (PvE) — ĐÃ CHỐT CÔNG THỨC, chờ build
-Mục tiêu: combat sim từ chỉ số → Vàng + rơi mảnh, **chống bug "ải quá yếu/mạnh"**.
+### Phase C — Vượt ải (PvE) — ✅ ĐÃ BUILD (vòng Vàng; chưa rơi trang bị)
+Đã có: `lib/game/combat.ts` (stageSpec/simulateStage/maxSurvivableStage/powerRating), `runCombatTick`+`runTick` trong tick.ts, actions `setCombatStage`/`setAutoAdvance`, `components/combat-view.tsx`, `Character.stageLocked`. Auto tiến ải cao nhất đủ sức + cho quay về ải cũ (khóa auto). CÒN THIẾU: rơi mảnh trang bị (Phase D) — thêm dropTable vào runCombatTick.
+Công thức đã dùng (khớp code):
 
 ```
 # Sức mạnh nhân vật
