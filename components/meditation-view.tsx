@@ -2,12 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { syncTick, focusReward } from "@/app/actions";
+import { MeditationBackground } from "@/components/meditation-background";
 import {
   expForTier,
   isMaxTier,
   tierName,
   SUB_TIERS,
   ELEMENT_LABELS,
+  FOCUS_DURATION_MS,
+  FOCUS_COOLDOWN_MS,
   type ElementKey,
 } from "@/lib/game/balance";
 import { expPerCycle, type ActiveTechnique } from "@/lib/game/engine";
@@ -43,7 +46,28 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   );
   const [focusOn, setFocusOn] = useState(false);
   const [orbs, setOrbs] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [sessionEndsAt, setSessionEndsAt] = useState(0);
+  const [nowTs, setNowTs] = useState(() => Date.now());
   const orbId = useRef(0);
+
+  // Khôi phục hồi chiêu focus từ localStorage (sống sót qua reload).
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem("focusCooldownUntil") || 0);
+      if (v > Date.now()) setCooldownUntil(v);
+    } catch {}
+  }, []);
+
+  // Đồng hồ 1s để cập nhật đếm ngược khi đang focus hoặc đang hồi chiêu.
+  useEffect(() => {
+    if (!focusOn && cooldownUntil <= Date.now()) return;
+    const id = setInterval(() => setNowTs(Date.now()), 500);
+    return () => clearInterval(id);
+  }, [focusOn, cooldownUntil]);
+
+  const onCooldown = cooldownUntil > nowTs;
+  const cooldownLeft = Math.max(0, Math.ceil((cooldownUntil - nowTs) / 1000));
 
   const majorRef = useRef(initial.realm);
   const subRef = useRef(initial.subLevel);
@@ -149,29 +173,46 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
     };
   }, [doSync]);
 
-  // "Tập trung cao độ": sinh check-point ngẫu nhiên khi bật.
+  // "Tập trung cao độ": phiên giới hạn, check-point ngẫu nhiên 5–10s, xong vào hồi chiêu.
   useEffect(() => {
     if (!focusOn) {
       setOrbs([]);
       return;
     }
     let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
+    let spawnTimer: ReturnType<typeof setTimeout>;
     const spawn = () => {
       if (!alive) return;
       const id = orbId.current++;
       const x = 12 + Math.random() * 76;
-      const y = 12 + Math.random() * 66;
+      const y = 14 + Math.random() * 58;
       setOrbs((o) => [...o, { id, x, y }]);
-      setTimeout(() => setOrbs((o) => o.filter((k) => k.id !== id)), 2600);
-      timer = setTimeout(spawn, 1500 + Math.random() * 2000);
+      setTimeout(() => setOrbs((o) => o.filter((k) => k.id !== id)), 3200);
+      spawnTimer = setTimeout(spawn, 5000 + Math.random() * 5000); // 5–10s
     };
-    timer = setTimeout(spawn, 600);
+    spawnTimer = setTimeout(spawn, 700);
+
+    const endTimer = setTimeout(() => {
+      const until = Date.now() + FOCUS_COOLDOWN_MS;
+      setCooldownUntil(until);
+      try {
+        localStorage.setItem("focusCooldownUntil", String(until));
+      } catch {}
+      setFocusOn(false);
+    }, FOCUS_DURATION_MS);
+
     return () => {
       alive = false;
-      clearTimeout(timer);
+      clearTimeout(spawnTimer);
+      clearTimeout(endTimer);
     };
   }, [focusOn]);
+
+  const startFocus = useCallback(() => {
+    if (focusOn || cooldownUntil > Date.now()) return;
+    setSessionEndsAt(Date.now() + FOCUS_DURATION_MS);
+    setFocusOn(true);
+  }, [focusOn, cooldownUntil]);
 
   const clickOrb = useCallback(
     (id: number) => {
@@ -203,6 +244,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
 
       {/* Sân khấu thiền */}
       <div className="relative mx-auto flex h-[300px] w-full max-w-[300px] items-center justify-center">
+        <MeditationBackground />
         <div
           className="animate-qi-breathe absolute h-[240px] w-[240px] rounded-full"
           style={{
@@ -331,16 +373,23 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         ))}
       </div>
 
-      {/* Nút Tập trung cao độ */}
+      {/* Nút Tập trung cao độ (phiên giới hạn + hồi chiêu) */}
       <button
-        onClick={() => setFocusOn((v) => !v)}
+        onClick={startFocus}
+        disabled={focusOn || onCooldown}
         className={`mt-1 w-full rounded-xl py-2.5 text-sm font-semibold transition ${
           focusOn
-            ? "bg-gold text-black hover:brightness-110"
-            : "bg-white/10 text-white/80 hover:bg-white/15"
+            ? "bg-gold text-black"
+            : onCooldown
+              ? "bg-white/5 text-white/40"
+              : "bg-white/10 text-white/80 hover:bg-white/15"
         }`}
       >
-        {focusOn ? "✦ Đang Tập Trung Cao Độ — chạm điểm sáng để +1 vòng" : "✦ Tập trung cao độ"}
+        {focusOn
+          ? `✦ Đang tập trung — chạm điểm sáng (${Math.max(0, Math.ceil((sessionEndsAt - nowTs) / 1000))}s)`
+          : onCooldown
+            ? `✦ Tập trung cao độ — hồi chiêu ${cooldownLeft}s`
+            : "✦ Tập trung cao độ"}
       </button>
 
       {/* Cảnh giới · tầng + thanh EXP */}

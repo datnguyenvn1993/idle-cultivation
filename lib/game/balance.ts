@@ -70,7 +70,7 @@ export const ONLINE_GRACE_MS = 3 * 60 * 1000;
 //   tầng 9 (đột phá)    = nền × 9 × BREAKTHROUGH_MULT    (bức tường đại cảnh giới)
 // ---------------------------------------------------------------------------
 export const SUB_TIERS = 9;
-export const EXP_BASE = 20;
+export const EXP_BASE = 40; // x2 so với trước (lên cấp chậm lại)
 export const MAJOR_JUMP = 10;
 export const BREAKTHROUGH_MULT = 4;
 export const MAX_MAJOR = REALMS.length - 1;
@@ -118,13 +118,18 @@ export const STAT_LABELS: Record<StatKey, string> = {
   hp: "Máu",
   atk: "Tấn công",
   def: "Phòng thủ",
-  pPower: "SM Vật lý",
-  mPower: "SM Phép",
+  pPower: "Công vật lý",
+  mPower: "Công phép",
   pRes: "Thủ vật lý",
   mRes: "Thủ phép",
 };
 
-export const STAT_KEYS: StatKey[] = ["hp", "atk", "def", "pPower", "mPower", "pRes", "mRes"];
+// Chỉ số cho phép phân bổ điểm (đã gộp: bỏ Tấn công & Phòng thủ chung).
+export const STAT_KEYS: StatKey[] = ["pPower", "mPower", "pRes", "mRes", "hp"];
+
+// "Tập trung cao độ": mỗi phiên kéo dài giới hạn, sau đó hồi chiêu.
+export const FOCUS_DURATION_MS = 30 * 1000;
+export const FOCUS_COOLDOWN_MS = 4 * 60 * 1000;
 
 export interface EffectiveStats {
   hp: number;
