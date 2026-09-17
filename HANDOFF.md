@@ -188,12 +188,15 @@ Tất cả hằng số ở `lib/game/balance.ts`.
 Công thức đã dùng (khớp code):
 
 ```
-# Sức mạnh nhân vật
-physDPS  = pPower × atkSpeed                 (thể tu, KHÔNG ngũ hành)
-magicDPS = mPower × atkSpeed × elementMult   (pháp tu, CÓ ngũ hành ±25%)
+# Sức mạnh nhân vật (công người chơi bị giảm bởi THỦ của quái, đối xứng)
+physDPS  = pPower × atkSpeed × (1 − monRedP)              (thể tu vs thủ VL quái)
+magicDPS = mPower × atkSpeed × elementMult × (1 − monRedM)(pháp tu vs thủ phép quái, ±25%)
 DPS      = physDPS + magicDPS
-giảm_res = res / (res + K(realm))             (giảm dần, không đạt 100%)
-EHP      = hp / (1 − giảm_trung_bình)
+monRedP/M = monsterPRes|MRes / (monsterPRes|MRes + K(realm))
+giảm_res = res / (res + K(realm))             (quái đánh mình cũng giảm, không đạt 100%)
+# Quái có: monsterHp, monsterDps, monsterPRes, monsterMRes (đều neo theo statBonus cảnh giới × factor)
+# TIẾN ẢI: mỗi ải là 1 flag — highestStage chỉ +1 khi THỰC SỰ clear ải kế (runCombatTick, tuần tự).
+#   KHÔNG dùng maxSurvivable scan (đã bỏ). combatReset: chuẩn hóa tài khoản cũ về ải 1.
 
 # Quái neo theo SỨC MẠNH KỲ VỌNG của cảnh giới (mấu chốt):
 expDPS(realm), expEHP(realm)  ← từ REALMS[realm].statBonus (phân bổ trung bình)
