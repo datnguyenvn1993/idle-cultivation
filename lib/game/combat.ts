@@ -8,6 +8,7 @@ import {
   TARGET_CLEAR_TIME,
   TARGET_SURVIVE_TIME,
   MIN_CLEAR_TIME,
+  MONSTER_DIFFICULTY,
   MAX_DMG_REDUCTION,
   mitigationK,
   stageRealm,
@@ -45,7 +46,7 @@ export function stageSpec(stage: number): StageSpec {
   return {
     index: s,
     realm,
-    monsterHp: Math.round(expDPS * TARGET_CLEAR_TIME * factor),
+    monsterHp: Math.round(expDPS * TARGET_CLEAR_TIME * factor * MONSTER_DIFFICULTY),
     monsterDps: Math.max(1, Math.round((expEHP / TARGET_SURVIVE_TIME) * factor)),
     atkType: s % 2 === 0 ? "MAGIC" : "PHYS",
     monsterPRes: Math.round(b.pRes * factor),

@@ -129,9 +129,11 @@ model Character {
   starterGranted Boolean   @default(false)
   lastFocusAt    DateTime?
   combatReset    Boolean   @default(false) // đã chuẩn hóa tiến trình ải (flag từng ải) chưa
+  resetVersion   Int       @default(0) // reset toàn bộ khi < RESET_VERSION
 
   techniques CharTechnique[]
   inventory  InventoryItem[]
+  equipment  CharEquipment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -204,4 +206,40 @@ model InventoryItem {
   item      Item      @relation(fields: [itemId], references: [id])
 
   @@unique([characterId, itemId, equipped])
+}
+
+// =====================================================================
+// TRANG BỊ (catalog) — dựng sẵn DB; logic rơi/craft/UI làm ở Phase D.
+// Sau này chỉ cần thêm dòng (tên, phẩm, ải rơi, tỉ lệ) là nó có xác suất rơi.
+// =====================================================================
+model Equipment {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  name         String
+  slot         String // loại: weapon | armor | helmet | accessory | artifact
+  rarity       Int // 1 Thường, 2 Hiếm, 3 Siêu hiếm
+  realm        Int // cấp bậc đồ theo đại cảnh giới
+  element      Element?
+  statBonus    Json // { atk, def, hp, pPower, mPower, pRes, mRes, atkSpeed }
+  dropStageMin Int      @default(1) // chỉ rơi từ ải này
+  dropStageMax Int      @default(1) // đến ải này
+  dropRate     Float    @default(0) // tỉ lệ rơi mỗi lần clear (0..1)
+  sortOrder    Int      @default(0)
+
+  owners CharEquipment[]
+}
+
+// Sở hữu trang bị của người chơi (cơ chế tích lũy mảnh -> lên cấp).
+model CharEquipment {
+  id          String  @id @default(cuid())
+  characterId String
+  equipmentId String
+  shards      Int     @default(0) // mảnh tích lũy
+  level       Int     @default(0) // cấp hiện tại (từ tích lũy)
+  equipped    Boolean @default(false)
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([characterId, equipmentId])
 }

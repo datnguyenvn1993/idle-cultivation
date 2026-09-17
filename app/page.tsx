@@ -4,6 +4,7 @@ import { GameShell } from "@/components/game-shell";
 import { getOrCreateCharacter } from "@/lib/game/character";
 import { runTick } from "@/lib/game/tick";
 import { ensureTechniqueCatalog, getTechniquesView } from "@/lib/game/techniques";
+import { ensureEquipmentCatalog } from "@/lib/game/equipment";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function Home() {
 
   const character = await getOrCreateCharacter(session.user.id);
   await ensureTechniqueCatalog();
+  await ensureEquipmentCatalog();
   const state = await runTick(character);
   const techniques = await getTechniquesView(character.id, state.realm);
 

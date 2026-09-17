@@ -139,7 +139,9 @@ export const MAX_STAGE = (MAX_MAJOR + 1) * STAGES_PER_REALM; // tổng số ải
 export const TARGET_CLEAR_TIME = 8; // giây/quái cho người chơi "chuẩn"
 export const TARGET_SURVIVE_TIME = 24; // ngưỡng sống sót của người chơi "chuẩn"
 export const MIN_CLEAR_TIME = 0.5; // sàn thời gian clear (chống clear tức thì)
-export const GOLD_BASE = 5; // vàng gốc mỗi ải
+export const MONSTER_DIFFICULTY = 3; // hệ số khó: máu quái ×N (chỉnh độ khó tổng)
+export const GOLD_BASE = 1; // vàng gốc mỗi ải (rất ít)
+export const GOLD_GROWTH = 1.08; // hệ số tăng vàng theo ải (nhẹ)
 export const MAX_DMG_REDUCTION = 0.9; // trần giảm sát thương (không bất tử)
 
 // Đại cảnh giới của ải.
@@ -154,7 +156,7 @@ export function mitigationK(realm: number): number {
 }
 
 export function stageGoldReward(stage: number): number {
-  return Math.round(GOLD_BASE * Math.pow(1.15, stage - 1));
+  return Math.max(1, Math.round(GOLD_BASE * Math.pow(GOLD_GROWTH, stage - 1)));
 }
 
 export interface EffectiveStats {
