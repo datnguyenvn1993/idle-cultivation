@@ -69,11 +69,29 @@ export interface CharacterState {
 
   highestStage: number;
   currentStage: number;
+  stageLocked: boolean;
+  maxStage: number; // ải cao nhất đủ sức (mở khóa)
+  powerRating: number;
+  stage: StageInfo; // thông tin ải đang farm
 
   techniques: TechniqueState[];
 
   // Kết quả tick gần nhất (để hiện thông báo "tu luyện offline")
   gainedThisTick: number;
   cyclesThisTick: number;
+  goldThisTick: number; // vàng nhận đợt tick (combat)
   offlineThisTick: boolean; // đợt tick vừa rồi là offline (50%)?
+}
+
+export interface StageInfo {
+  index: number;
+  realmName: string;
+  element: ElementKey;
+  monsterHp: number;
+  monsterDps: number;
+  clearTime: number;
+  canSurvive: boolean;
+  goldPerSec: number;
+  goldReward: number;
+  reduction: number; // % giảm sát thương của người chơi ở ải này
 }

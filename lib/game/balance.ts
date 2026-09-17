@@ -131,6 +131,32 @@ export const STAT_KEYS: StatKey[] = ["pPower", "mPower", "pRes", "mRes", "hp"];
 export const FOCUS_DURATION_MS = 30 * 1000;
 export const FOCUS_COOLDOWN_MS = 4 * 60 * 1000;
 
+// ---------------------------------------------------------------------------
+// VƯỢT ẢI (PvE) — ải sinh theo công thức, neo vào sức mạnh kỳ vọng của cảnh giới.
+// ---------------------------------------------------------------------------
+export const STAGES_PER_REALM = 10; // mỗi đại cảnh giới có 10 ải
+export const MAX_STAGE = (MAX_MAJOR + 1) * STAGES_PER_REALM; // tổng số ải
+export const TARGET_CLEAR_TIME = 8; // giây/quái cho người chơi "chuẩn"
+export const TARGET_SURVIVE_TIME = 24; // ngưỡng sống sót của người chơi "chuẩn"
+export const MIN_CLEAR_TIME = 0.5; // sàn thời gian clear (chống clear tức thì)
+export const GOLD_BASE = 5; // vàng gốc mỗi ải
+export const MAX_DMG_REDUCTION = 0.9; // trần giảm sát thương (không bất tử)
+
+// Đại cảnh giới của ải.
+export function stageRealm(stage: number): number {
+  return Math.min(Math.floor((stage - 1) / STAGES_PER_REALM), MAX_MAJOR);
+}
+
+// Hằng số giảm trừ theo cảnh giới ải: res/(res+K). K ~ thủ chuẩn của cảnh giới
+// → người chơi "chuẩn" giảm ~50%, res cao hơn thì giảm dần (không đạt 100%).
+export function mitigationK(realm: number): number {
+  return Math.max(1, REALMS[Math.min(Math.max(realm, 0), MAX_MAJOR)].statBonus.pRes);
+}
+
+export function stageGoldReward(stage: number): number {
+  return Math.round(GOLD_BASE * Math.pow(1.15, stage - 1));
+}
+
 export interface EffectiveStats {
   hp: number;
   atk: number;

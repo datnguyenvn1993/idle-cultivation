@@ -3,6 +3,7 @@ import {
   expForTier,
   isMaxTier,
   tierName,
+  realmName,
   computeStats,
   totalTierIndex,
   STAT_POINTS_PER_TIER,
@@ -18,7 +19,13 @@ import {
   cycleDurationMs,
   type ActiveTechnique,
 } from "./engine";
-import type { CharacterState, TechniqueState } from "./types";
+import {
+  simulateStage,
+  stageSpec,
+  powerRating,
+  maxSurvivableStage,
+} from "./combat";
+import type { CharacterState, StageInfo, TechniqueState } from "./types";
 import type { CharacterWithTechniques } from "./character";
 
 function techStates(character: CharacterWithTechniques): TechniqueState[] {
@@ -61,14 +68,34 @@ function buildState(
   cyclesThisTick: number,
   offlineThisTick: boolean,
   statPoints: number,
+  goldThisTick = 0,
 ): CharacterState {
   const techs = techStates(character);
   const alloc = allocOf(character);
   const stats = computeStats(major, alloc);
+  const element = character.element as ElementKey;
+
+  const maxStage = maxSurvivableStage(stats, element);
+  const curStage = Math.max(1, Math.min(character.currentStage, maxStage));
+  const spec = stageSpec(curStage);
+  const sim = simulateStage(stats, element, spec);
+  const stage: StageInfo = {
+    index: curStage,
+    realmName: realmName(spec.realm),
+    element: spec.element,
+    monsterHp: spec.monsterHp,
+    monsterDps: spec.monsterDps,
+    clearTime: sim.clearTime,
+    canSurvive: sim.canSurvive,
+    goldPerSec: sim.goldPerSec,
+    goldReward: spec.goldReward,
+    reduction: sim.reduction,
+  };
+
   return {
     name: character.name,
     mode: character.mode,
-    element: character.element as ElementKey,
+    element,
     realm: major,
     subLevel: sub,
     tierName: tierName(major, sub),
@@ -90,17 +117,30 @@ function buildState(
     pRes: stats.pRes,
     mRes: stats.mRes,
     atkSpeed: stats.atkSpeed,
-    highestStage: character.highestStage,
-    currentStage: character.currentStage,
+    highestStage: Math.max(character.highestStage, maxStage),
+    currentStage: curStage,
+    stageLocked: character.stageLocked,
+    maxStage,
+    powerRating: powerRating(stats),
+    stage,
     techniques: techs,
     gainedThisTick,
     cyclesThisTick,
+    goldThisTick,
     offlineThisTick,
   };
 }
 
-// Tick server-authoritative. Online (<=grace) nhận 100%, offline nhận 50% (cap 8h).
-// Lên tầng thì cấp điểm chỉ số (STAT_POINTS_PER_TIER mỗi tầng).
+// Dispatcher theo chế độ.
+export async function runTick(
+  character: CharacterWithTechniques,
+): Promise<CharacterState> {
+  return character.mode === "COMBAT"
+    ? runCombatTick(character)
+    : runMeditationTick(character);
+}
+
+// ---- THIỀN ----
 export async function runMeditationTick(
   character: CharacterWithTechniques,
 ): Promise<CharacterState> {
@@ -109,12 +149,6 @@ export async function runMeditationTick(
   const elapsedMs = Math.max(0, now - last);
 
   if (character.mode !== "MEDITATE") {
-    if (elapsedMs > 0) {
-      await prisma.character.update({
-        where: { id: character.id },
-        data: { lastTickAt: new Date(now) },
-      });
-    }
     return buildState(
       character,
       character.realm,
@@ -146,13 +180,10 @@ export async function runMeditationTick(
   );
 
   const newLastTick = now - res.leftoverMs;
-
-  // Điểm chỉ số theo số tầng đã lên.
   const tiersGained =
     totalTierIndex(res.newMajor, res.newSub) -
     totalTierIndex(character.realm, character.subLevel);
-  const pointsGained = Math.max(0, tiersGained) * STAT_POINTS_PER_TIER;
-  const newStatPoints = character.statPoints + pointsGained;
+  const newStatPoints = character.statPoints + Math.max(0, tiersGained) * STAT_POINTS_PER_TIER;
 
   if (res.cycles > 0) {
     await prisma.character.update({
@@ -165,6 +196,10 @@ export async function runMeditationTick(
         statPoints: newStatPoints,
       },
     });
+    character.realm = res.newMajor;
+    character.subLevel = res.newSub;
+    character.exp = BigInt(Math.floor(res.newExp));
+    character.statPoints = newStatPoints;
   }
 
   return buildState(
@@ -180,12 +215,75 @@ export async function runMeditationTick(
   );
 }
 
-// "Tập trung cao độ": thưởng ngay N vòng chu thiên (100%), không đụng đồng hồ vòng.
+// ---- VƯỢT ẢI ----
+export async function runCombatTick(
+  character: CharacterWithTechniques,
+): Promise<CharacterState> {
+  const now = Date.now();
+  const last = character.lastTickAt.getTime();
+  const elapsedMs = Math.max(0, now - last);
+
+  const alloc = allocOf(character);
+  const stats = computeStats(character.realm, alloc);
+  const element = character.element as ElementKey;
+
+  const offline = elapsedMs > ONLINE_GRACE_MS;
+  const effElapsed = offline
+    ? Math.min(elapsedMs, MAX_OFFLINE_SECONDS * 1000)
+    : elapsedMs;
+  const rate = offline ? OFFLINE_RATE : 1;
+  const sec = effElapsed / 1000;
+
+  const top = maxSurvivableStage(stats, element);
+  const cur = character.stageLocked
+    ? Math.max(1, Math.min(character.currentStage, top))
+    : top;
+
+  const spec = stageSpec(cur);
+  const sim = simulateStage(stats, element, spec);
+
+  let goldGained = 0;
+  let leftoverMs = effElapsed;
+  if (sim.canSurvive && sec > 0) {
+    const clears = Math.floor(sec / sim.clearTime);
+    goldGained = Math.floor(clears * spec.goldReward * rate);
+    leftoverMs = effElapsed - clears * sim.clearTime * 1000;
+  }
+  const newGold = Number(character.gold) + goldGained;
+  const newLast = sim.canSurvive ? now - Math.max(0, leftoverMs) : now;
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: {
+      gold: BigInt(newGold),
+      highestStage: Math.max(character.highestStage, top),
+      currentStage: cur,
+      lastTickAt: new Date(newLast),
+    },
+  });
+  character.gold = BigInt(newGold);
+  character.highestStage = Math.max(character.highestStage, top);
+  character.currentStage = cur;
+
+  return buildState(
+    character,
+    character.realm,
+    character.subLevel,
+    Number(character.exp),
+    0,
+    0,
+    0,
+    offline && goldGained > 0,
+    character.statPoints,
+    goldGained,
+  );
+}
+
+// "Tập trung cao độ": thưởng ngay N chu thiên (100%), không đụng đồng hồ.
 export async function grantFocusCycles(
   character: CharacterWithTechniques,
   n = 1,
 ): Promise<CharacterState> {
-  // Quyết toán thời gian trôi qua trước (để không mất tiến trình).
   const settled = await runMeditationTick(character);
   if (settled.mode !== "MEDITATE" || settled.isMax) return settled;
 
@@ -212,8 +310,7 @@ export async function grantFocusCycles(
 
   const tiersGained =
     totalTierIndex(major, sub) - totalTierIndex(settled.realm, settled.subLevel);
-  const pointsGained = Math.max(0, tiersGained) * STAT_POINTS_PER_TIER;
-  const newStatPoints = settled.statPoints + pointsGained;
+  const newStatPoints = settled.statPoints + Math.max(0, tiersGained) * STAT_POINTS_PER_TIER;
 
   await prisma.character.update({
     where: { id: character.id },

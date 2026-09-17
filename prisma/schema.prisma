@@ -121,8 +121,9 @@ model Character {
   allocMRes   Int @default(0)
 
   // Tiến trình vượt ải
-  highestStage Int @default(0)
-  currentStage Int @default(1)
+  highestStage Int     @default(1) // ải cao nhất đủ sức (mở khóa)
+  currentStage Int     @default(1) // ải đang farm
+  stageLocked  Boolean @default(false) // true = người chơi tự chọn ải (không auto tiến)
 
   // Quà khởi đầu đã trao chưa; mốc thời gian cho "Tập trung cao độ"
   starterGranted Boolean   @default(false)

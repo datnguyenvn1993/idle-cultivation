@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { MeditationView } from "@/components/meditation-view";
+import { CombatView } from "@/components/combat-view";
 import { CongPhapPanel } from "@/components/cong-phap-panel";
 import { toggleMode, allocateStat } from "@/app/actions";
 import { signOutAction } from "@/app/actions-auth";
@@ -166,14 +167,7 @@ export function GameShell({
             {isMeditating ? (
               <MeditationView initial={state} />
             ) : (
-              <section className="rounded-2xl bg-panel/80 p-8 text-center shadow-xl ring-1 ring-white/5">
-                <div className="text-5xl">⚔️</div>
-                <div className="mt-3 text-xl font-bold">Lịch Luyện (Vượt ải)</div>
-                <p className="mx-auto mt-2 max-w-sm text-sm text-white/50">
-                  Trảm yêu kiếm Vàng &amp; vật phẩm — sẽ có ở phase sau. Khi vượt ải,
-                  tu vi (EXP) không tăng.
-                </p>
-              </section>
+              <CombatView initial={state} />
             )}
 
             <StatsSection state={state} />

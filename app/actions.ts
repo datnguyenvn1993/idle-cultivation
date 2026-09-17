@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/db/prisma";
 import { getOrCreateCharacter } from "@/lib/game/character";
-import { runMeditationTick, grantFocusCycles } from "@/lib/game/tick";
+import { runTick, grantFocusCycles } from "@/lib/game/tick";
 import {
   activeSlots,
   techniqueLevelCost,
@@ -38,12 +38,12 @@ function allocData(stat: StatKey): Prisma.CharacterUpdateInput {
 
 export async function syncTick(): Promise<CharacterState> {
   const character = await requireCharacter();
-  return runMeditationTick(character);
+  return runTick(character);
 }
 
 export async function toggleMode(): Promise<void> {
   const character = await requireCharacter();
-  await runMeditationTick(character);
+  await runTick(character);
   const next = character.mode === "MEDITATE" ? "COMBAT" : "MEDITATE";
   await prisma.character.update({
     where: { id: character.id },
@@ -55,7 +55,7 @@ export async function toggleMode(): Promise<void> {
 // Lĩnh ngộ công pháp. Bộ Vàng free; bộ Linh thạch tốn unlockCost.
 export async function learnTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
-  const state = await runMeditationTick(character);
+  const state = await runTick(character);
   const tech = await prisma.technique.findUnique({ where: { id: techniqueId } });
   if (!tech) return { ok: false, error: "Không tìm thấy công pháp" };
   if (state.realm < tech.unlockRealm)
@@ -89,7 +89,7 @@ export async function learnTechnique(techniqueId: string): Promise<ActionResult>
 
 export async function toggleTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
-  const state = await runMeditationTick(character);
+  const state = await runTick(character);
 
   const ct = await prisma.charTechnique.findUnique({
     where: { characterId_techniqueId: { characterId: character.id, techniqueId } },
@@ -118,7 +118,7 @@ export async function toggleTechnique(techniqueId: string): Promise<ActionResult
 // Nâng cấp công pháp bằng đúng tiền tệ của nó (Vàng hoặc Linh thạch).
 export async function levelTechnique(techniqueId: string): Promise<ActionResult> {
   const character = await requireCharacter();
-  await runMeditationTick(character);
+  await runTick(character);
 
   const [ct, tech, fresh] = await Promise.all([
     prisma.charTechnique.findUnique({
@@ -183,6 +183,31 @@ export async function focusReward(): Promise<ActionResult> {
     return { ok: false, error: "Chậm lại chút" };
 
   await grantFocusCycles(character, 1);
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Chọn ải để farm (quay về ải cũ). target < maxStage => khóa (không auto tiến).
+export async function setCombatStage(stage: number): Promise<ActionResult> {
+  const character = await requireCharacter();
+  const state = await runTick(character); // settle + lấy maxStage
+  const target = Math.max(1, Math.min(Math.floor(stage), state.maxStage));
+  await prisma.character.update({
+    where: { id: character.id },
+    data: { currentStage: target, stageLocked: target < state.maxStage },
+  });
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Bật lại auto tiến ải (về ải cao nhất).
+export async function setAutoAdvance(): Promise<ActionResult> {
+  const character = await requireCharacter();
+  const state = await runTick(character);
+  await prisma.character.update({
+    where: { id: character.id },
+    data: { currentStage: state.maxStage, stageLocked: false },
+  });
   revalidatePath("/");
   return { ok: true };
 }
