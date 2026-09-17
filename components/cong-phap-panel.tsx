@@ -11,7 +11,7 @@ import {
 } from "@/lib/game/balance";
 import type { TechniqueView } from "@/lib/game/types";
 
-const pct = (m: number) => `+${Math.round((m - 1) * 100)}%`;
+const pct = (m: number) => `+${Number(((m - 1) * 100).toFixed(2))}%`;
 const cur = (c: "GOLD" | "STONE") => (c === "GOLD" ? "🪙" : "💎");
 
 export function CongPhapPanel({
