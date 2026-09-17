@@ -31,6 +31,7 @@ function ComingSoon({ title, note }: { title: string; note: string }) {
 
 function StatsSection({ state }: { state: CharacterState }) {
   const [pending, start] = useTransition();
+  const [amount, setAmount] = useState(1);
   const val: Record<StatKey, number> = {
     hp: state.hp,
     atk: state.atk,
@@ -41,6 +42,7 @@ function StatsSection({ state }: { state: CharacterState }) {
     mRes: state.mRes,
   };
   const canAlloc = state.statPoints > 0;
+  const use = Math.max(1, Math.min(amount || 1, state.statPoints));
 
   return (
     <section className="mt-4 rounded-2xl bg-panel/80 p-4 shadow-xl ring-1 ring-white/5">
@@ -52,6 +54,36 @@ function StatsSection({ state }: { state: CharacterState }) {
           </span>
         )}
       </div>
+
+      {canAlloc && (
+        <div className="mb-2 flex items-center gap-2 text-xs">
+          <span className="text-white/50">Cộng mỗi lần:</span>
+          <input
+            type="number"
+            min={1}
+            max={state.statPoints}
+            value={amount}
+            onChange={(e) => setAmount(Math.max(1, Math.floor(Number(e.target.value) || 1)))}
+            className="w-16 rounded-md bg-white/10 px-2 py-1 text-center text-white/90 outline-none"
+          />
+          {[10, 100].map((n) => (
+            <button
+              key={n}
+              onClick={() => setAmount(n)}
+              className="rounded-md bg-white/10 px-2 py-1 text-white/70 hover:bg-white/20"
+            >
+              {n}
+            </button>
+          ))}
+          <button
+            onClick={() => setAmount(state.statPoints)}
+            className="rounded-md bg-white/10 px-2 py-1 text-white/70 hover:bg-white/20"
+          >
+            Tất cả
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-2">
         {STAT_KEYS.map((k) => (
           <div
@@ -69,11 +101,11 @@ function StatsSection({ state }: { state: CharacterState }) {
             {canAlloc && (
               <button
                 disabled={pending}
-                title={`+${STAT_POINT_GAINS[k]} ${STAT_LABELS[k]}`}
-                onClick={() => start(async () => { await allocateStat(k); })}
-                className="ml-2 h-7 w-7 shrink-0 rounded-lg bg-jade text-lg font-bold leading-none text-black transition hover:brightness-110 disabled:opacity-40"
+                title={`+${STAT_POINT_GAINS[k] * use} ${STAT_LABELS[k]}`}
+                onClick={() => start(async () => { await allocateStat(k, use); })}
+                className="ml-2 shrink-0 rounded-lg bg-jade px-2 py-1 text-xs font-bold leading-none text-black transition hover:brightness-110 disabled:opacity-40"
               >
-                +
+                +{use}
               </button>
             )}
           </div>

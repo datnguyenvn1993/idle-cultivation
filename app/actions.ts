@@ -10,6 +10,8 @@ import {
   activeSlots,
   techniqueLevelCost,
   STAT_KEYS,
+  STAT_POINTS_PER_TIER,
+  FREE_MAX_GOLD_LEVEL,
   type StatKey,
 } from "@/lib/game/balance";
 import type { CharacterState } from "@/lib/game/types";
@@ -22,9 +24,9 @@ async function requireCharacter() {
   return getOrCreateCharacter(session.user.id);
 }
 
-function allocData(stat: StatKey): Prisma.CharacterUpdateInput {
-  const inc = { increment: 1 };
-  const dec = { decrement: 1 };
+function allocData(stat: StatKey, amount: number): Prisma.CharacterUpdateInput {
+  const inc = { increment: amount };
+  const dec = { decrement: amount };
   switch (stat) {
     case "hp": return { statPoints: dec, allocHp: inc };
     case "atk": return { statPoints: dec, allocAtk: inc };
@@ -134,6 +136,11 @@ export async function levelTechnique(techniqueId: string): Promise<ActionResult>
   if (ct.level >= tech.maxLevel) return { ok: false, error: "Đã đạt cấp tối đa" };
 
   const currency = tech.currency === "GOLD" ? "GOLD" : "STONE";
+  if (currency === "GOLD" && ct.level >= FREE_MAX_GOLD_LEVEL)
+    return {
+      ok: false,
+      error: "Công pháp Free trên cấp 10 cần vật phẩm (rơi từ quái) — sắp có ở Phase D",
+    };
   const cost = techniqueLevelCost(ct.level + 1, tech.rarity, currency);
   const have = currency === "GOLD" ? Number(fresh.gold) : Number(fresh.spiritStones);
   if (have < cost)
@@ -159,16 +166,38 @@ export async function levelTechnique(techniqueId: string): Promise<ActionResult>
   return { ok: true };
 }
 
-// Phân bổ 1 điểm chỉ số.
-export async function allocateStat(stat: string): Promise<ActionResult> {
+// Phân bổ `amount` điểm chỉ số một lần (tối ưu, 1 lần gọi).
+export async function allocateStat(stat: string, amount = 1): Promise<ActionResult> {
   const character = await requireCharacter();
   if (!STAT_KEYS.includes(stat as StatKey))
     return { ok: false, error: "Chỉ số không hợp lệ" };
   if (character.statPoints <= 0) return { ok: false, error: "Hết điểm chỉ số" };
 
+  const use = Math.min(Math.max(1, Math.floor(amount)), character.statPoints);
   await prisma.character.update({
     where: { id: character.id },
-    data: allocData(stat as StatKey),
+    data: allocData(stat as StatKey, use),
+  });
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// Độ Kiếp: đột phá ĐẠI cảnh giới khi đã đầy tầng 9.
+export async function breakthrough(): Promise<ActionResult> {
+  const character = await requireCharacter();
+  const state = await runTick(character); // quyết toán trước
+  if (!state.readyBreakthrough)
+    return { ok: false, error: "Chưa đủ tu vi để độ kiếp" };
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: {
+      realm: state.realm + 1,
+      subLevel: 1,
+      exp: BigInt(0),
+      statPoints: { increment: STAT_POINTS_PER_TIER },
+      lastTickAt: new Date(),
+    },
   });
   revalidatePath("/");
   return { ok: true };

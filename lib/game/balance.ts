@@ -136,10 +136,11 @@ export const FOCUS_COOLDOWN_MS = 4 * 60 * 1000;
 // ---------------------------------------------------------------------------
 export const STAGES_PER_REALM = 10; // mỗi đại cảnh giới có 10 ải
 export const MAX_STAGE = (MAX_MAJOR + 1) * STAGES_PER_REALM; // tổng số ải
-export const TARGET_CLEAR_TIME = 8; // giây/quái cho người chơi "chuẩn"
-export const TARGET_SURVIVE_TIME = 24; // ngưỡng sống sót của người chơi "chuẩn"
+export const TARGET_CLEAR_TIME = 30; // giây/quái cho người chơi "chuẩn" (~30s/lượt)
+export const TARGET_SURVIVE_TIME = 24; // mốc để quy ra sát thương quái
 export const MIN_CLEAR_TIME = 0.5; // sàn thời gian clear (chống clear tức thì)
-export const MONSTER_DIFFICULTY = 3; // hệ số khó: máu quái ×N (chỉnh độ khó tổng)
+export const MONSTER_DIFFICULTY = 1; // hệ số máu quái (TARGET_CLEAR_TIME đã gánh độ khó)
+export const MONSTER_ATK_MULT = 3; // hệ số CÔNG quái ×N (siết chốt chặn sống sót)
 export const GOLD_BASE = 1; // vàng gốc mỗi ải (rất ít)
 export const GOLD_GROWTH = 1.08; // hệ số tăng vàng theo ải (nhẹ)
 export const MAX_DMG_REDUCTION = 0.9; // trần giảm sát thương (không bất tử)
@@ -224,6 +225,27 @@ export const RARITY_LABELS: Record<number, string> = {
   2: "Hiếm",
   3: "Siêu hiếm",
 };
+
+// ---------------------------------------------------------------------------
+// HỆ % CÔNG PHÁP (cộng dồn, KHÔNG lũy thừa)
+//   Free (GOLD): base = 5% + 3%×đại_cảnh_giới, mỗi cấp +0.25%
+//   VIP  (STONE): base = 10% + 5%×đại_cảnh_giới, mỗi cấp +0.5%
+//   Tổng bonus EXP = Σ (các công pháp đang active). expMult = 1 + Σ.
+// ---------------------------------------------------------------------------
+export const FREE_MAX_GOLD_LEVEL = 10; // công pháp Free: >cấp này phải dùng vật phẩm (rơi từ quái)
+
+// Trả về bonus (dạng thập phân, vd 0.05 = +5%) của 1 công pháp ở cấp `level`.
+export function techniqueBonus(
+  currency: "GOLD" | "STONE",
+  realm: number,
+  level: number,
+): number {
+  if (level <= 0) return 0;
+  const r = Math.min(Math.max(realm, 0), MAX_MAJOR);
+  const basePct = currency === "GOLD" ? 5 + r * 3 : 10 + r * 5;
+  const stepPct = currency === "GOLD" ? 0.25 : 0.5;
+  return (basePct + (level - 1) * stepPct) / 100;
+}
 
 // ---------------------------------------------------------------------------
 // Ngũ hành tương khắc: OVERCOMES[a] = b nghĩa là a khắc b.

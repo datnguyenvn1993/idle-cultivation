@@ -28,8 +28,7 @@ export interface CombatStats {
 }
 
 export interface ActiveTechnique {
-  expMultiplier: number;
-  level: number;
+  bonus: number; // bonus EXP dạng thập phân (0.05 = +5%), tính sẵn từ balance.techniqueBonus
   active: boolean;
 }
 
@@ -54,10 +53,10 @@ export function elementMultiplier(
 export function expPerCycle(realm: number, techniques: ActiveTechnique[]): number {
   const realmDef = REALMS[Math.min(realm, REALMS.length - 1)];
   const realmRate = realmDef?.expRate ?? 1;
-  const techMult = techniques
+  const bonus = techniques
     .filter((t) => t.active)
-    .reduce((acc, t) => acc * Math.pow(t.expMultiplier, t.level), 1);
-  return Math.max(1, Math.round(BASE_EXP_PER_CYCLE * realmRate * techMult));
+    .reduce((acc, t) => acc + t.bonus, 0);
+  return Math.max(1, Math.round(BASE_EXP_PER_CYCLE * realmRate * (1 + bonus)));
 }
 
 // Thời gian 1 vòng (ms). speedMult > 1 => vòng ngắn hơn (buff tốc độ tu luyện).
@@ -97,29 +96,27 @@ export function applyMeditationByTime(
   let gained = 0;
 
   for (let i = 0; i < cycles; i++) {
-    if (isMaxTier(nm, ns)) break; // đã tối đa, ngừng cộng
+    if (isMaxTier(nm, ns)) break; // đã tối đa
+    // Chờ Độ Kiếp: đầy tầng 9 (chưa phải cảnh giới cuối) -> ngừng, không tự đột phá.
+    if (ns >= SUB_TIERS && ne >= expForTier(nm, ns)) break;
     const pc = expPerCycle(nm, techniques) * expRate;
     ne += pc;
     gained += pc;
-    // lên tầng / đột phá liên tiếp nếu đủ
-    while (!isMaxTier(nm, ns)) {
+    // Chỉ tự lên TIỂU tầng (1->9). Đột phá ĐẠI cảnh giới phải Độ Kiếp thủ công.
+    while (ns < SUB_TIERS) {
       const need = expForTier(nm, ns);
       if (ne < need) break;
       ne -= need;
-      if (ns < SUB_TIERS) {
-        ns += 1;
-      } else {
-        nm += 1;
-        ns = 1;
-      }
+      ns += 1;
     }
   }
 
-  // Ở tầng tối đa thì chặn EXP không vượt ngưỡng (hiển thị đầy).
-  if (isMaxTier(nm, ns)) {
-    ne = Math.min(ne, expForTier(nm, ns));
-    if (nm > MAX_MAJOR) nm = MAX_MAJOR;
+  // Cap EXP khi đầy tầng 9 (chờ Độ Kiếp) hoặc đã tối đa.
+  if (ns >= SUB_TIERS) {
+    const cap = expForTier(nm, ns);
+    if (ne > cap) ne = cap;
   }
+  if (nm > MAX_MAJOR) nm = MAX_MAJOR;
 
   return { newMajor: nm, newSub: ns, newExp: ne, gained, cycles, leftoverMs, cycleMs };
 }

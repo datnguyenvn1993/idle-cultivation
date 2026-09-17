@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/db/prisma";
-import { techniqueLevelCost, type ElementKey } from "./balance";
+import {
+  techniqueLevelCost,
+  techniqueBonus,
+  FREE_MAX_GOLD_LEVEL,
+  type ElementKey,
+} from "./balance";
 import { TECHNIQUE_CATALOG } from "./techniques-data";
 import type { TechniqueView } from "./types";
 
@@ -45,7 +50,9 @@ export async function getTechniquesView(
     const level = mine?.level ?? 0;
     const active = mine?.active ?? false;
     const atMaxLevel = level >= t.maxLevel;
-    const currency = t.currency === "GOLD" ? "GOLD" : "STONE";
+    const currency: "GOLD" | "STONE" = t.currency === "GOLD" ? "GOLD" : "STONE";
+    // Free (GOLD) sau lv10: phải dùng vật phẩm (rơi từ quái) mới nâng tiếp.
+    const needsItem = currency === "GOLD" && level >= FREE_MAX_GOLD_LEVEL && !atMaxLevel;
     return {
       id: t.id,
       key: t.key,
@@ -62,10 +69,12 @@ export async function getTechniquesView(
       learnCost: currency === "GOLD" ? 0 : t.unlockCost,
       level,
       active,
-      multiplierNow: level > 0 ? Math.pow(t.expMultiplier, level) : 1,
-      multiplierNext: Math.pow(t.expMultiplier, level + 1),
-      levelUpCost: atMaxLevel ? 0 : techniqueLevelCost(level + 1, t.rarity, currency),
+      multiplierNow: 1 + techniqueBonus(currency, t.unlockRealm, level),
+      multiplierNext: 1 + techniqueBonus(currency, t.unlockRealm, level + 1),
+      levelUpCost:
+        atMaxLevel || needsItem ? 0 : techniqueLevelCost(level + 1, t.rarity, currency),
       atMaxLevel,
+      needsItem,
     };
   });
 }

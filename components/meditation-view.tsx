@@ -1,12 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { syncTick, focusReward } from "@/app/actions";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { syncTick, focusReward, breakthrough } from "@/app/actions";
 import { MeditationBackground } from "@/components/meditation-background";
 import {
   expForTier,
   isMaxTier,
   tierName,
+  realmName,
+  techniqueBonus,
   SUB_TIERS,
   ELEMENT_LABELS,
   FOCUS_DURATION_MS,
@@ -25,8 +34,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const active: ActiveTechnique[] = useMemo(
     () =>
       initial.techniques.map((t) => ({
-        expMultiplier: t.expMultiplier,
-        level: t.level,
+        bonus: techniqueBonus(t.currency, t.unlockRealm, t.level),
         active: t.active,
       })),
     [initial.techniques],
@@ -80,6 +88,8 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const threshold = expForTier(major, sub);
   const atMax = isMaxTier(major, sub);
   const pctExp = Math.min(100, (exp / threshold) * 100);
+  const ready = sub >= SUB_TIERS && exp >= threshold && !atMax; // sẵn sàng Độ Kiếp
+  const [btPending, startBt] = useTransition();
 
   const spawnFloater = useCallback((amount: number) => {
     const id = floaterId.current++;
@@ -88,33 +98,30 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   }, []);
 
   const completeCycle = useCallback(() => {
-    if (isMaxTier(majorRef.current, subRef.current)) return;
-    const pc = expPerCycle(majorRef.current, active);
+    const mj = majorRef.current;
+    if (isMaxTier(mj, subRef.current)) return;
+    // Đầy tầng 9 -> chờ Độ Kiếp (không tự đột phá đại cảnh giới).
+    if (subRef.current >= SUB_TIERS && expRef.current >= expForTier(mj, subRef.current))
+      return;
+    const pc = expPerCycle(mj, active);
     let ne = expRef.current + pc;
-    let mj = majorRef.current;
     let sb = subRef.current;
-    const majorBefore = mj;
-    while (!isMaxTier(mj, sb)) {
+    while (sb < SUB_TIERS) {
       const need = expForTier(mj, sb);
       if (ne < need) break;
       ne -= need;
-      if (sb < SUB_TIERS) sb += 1;
-      else {
-        mj += 1;
-        sb = 1;
-      }
+      sb += 1;
     }
-    if (isMaxTier(mj, sb)) ne = Math.min(ne, expForTier(mj, sb));
-
+    if (sb >= SUB_TIERS) {
+      const cap = expForTier(mj, sb);
+      if (ne > cap) ne = cap;
+    }
     expRef.current = ne;
     setExp(ne);
-    if (mj !== majorRef.current || sb !== subRef.current) {
-      majorRef.current = mj;
+    if (sb !== subRef.current) {
       subRef.current = sb;
-      setMajor(mj);
       setSub(sb);
     }
-    if (mj !== majorBefore) setFlashKey((k) => k + 1); // lóe sáng khi đột phá ĐẠI cảnh giới
     spawnFloater(pc);
   }, [active, spawnFloater]);
 
@@ -125,7 +132,11 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
     const frame = (ts: number) => {
       const dt = Math.min(ts - last, 1000);
       last = ts;
-      if (!isMaxTier(majorRef.current, subRef.current)) {
+      const paused =
+        isMaxTier(majorRef.current, subRef.current) ||
+        (subRef.current >= SUB_TIERS &&
+          expRef.current >= expForTier(majorRef.current, subRef.current));
+      if (!paused) {
         let p = progressRef.current + dt;
         while (p >= cycleMs) {
           p -= cycleMs;
@@ -158,6 +169,16 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       /* bỏ qua lỗi mạng tạm thời */
     }
   }, []);
+
+  const doBreakthrough = useCallback(() => {
+    startBt(async () => {
+      const r = await breakthrough();
+      if (r.ok) {
+        setFlashKey((k) => k + 1);
+        await doSync();
+      }
+    });
+  }, [doSync]);
 
   useEffect(() => {
     const id = setInterval(doSync, 60_000);
@@ -419,8 +440,20 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         </div>
       </div>
 
+      {ready && (
+        <button
+          onClick={doBreakthrough}
+          disabled={btPending}
+          className="animate-qi-breathe mt-3 w-full rounded-xl bg-gradient-to-r from-gold to-mystic py-3 text-center font-bold text-black shadow-lg transition hover:brightness-110 disabled:opacity-60"
+        >
+          ⚡ ĐỘ KIẾP — Đột phá {realmName(major + 1)}
+        </button>
+      )}
+
       <p className="mt-4 text-center text-xs text-white/30">
-        Online nhận 100% tu vi mỗi chu thiên. Offline vẫn tu (50%, tích lũy tối đa 8 giờ).
+        {ready
+          ? "Tu vi đã viên mãn tầng 9 — Độ Kiếp để đột phá đại cảnh giới!"
+          : "Online nhận 100% tu vi mỗi chu thiên. Offline vẫn tu (50%, tối đa 8 giờ)."}
       </p>
     </section>
   );

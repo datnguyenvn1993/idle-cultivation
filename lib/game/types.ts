@@ -4,7 +4,8 @@ import type { ElementKey, StatKey } from "./balance";
 export interface TechniqueState {
   key: string;
   name: string;
-  expMultiplier: number;
+  currency: "GOLD" | "STONE";
+  unlockRealm: number;
   level: number;
   active: boolean;
 }
@@ -26,10 +27,11 @@ export interface TechniqueView {
   learnCost: number; // chi phí lĩnh ngộ (0 = miễn phí)
   level: number; // 0 nếu chưa học
   active: boolean;
-  multiplierNow: number; // expMultiplier^level
-  multiplierNext: number; // ở cấp +1
+  multiplierNow: number; // 1 + bonus hiện tại
+  multiplierNext: number; // 1 + bonus cấp +1
   levelUpCost: number; // chi phí lên cấp (theo currency)
   atMaxLevel: boolean;
+  needsItem: boolean; // công pháp Free >lv10: cần vật phẩm (rơi từ quái) mới nâng
 }
 
 // Trạng thái nhân vật đã "serialize" (BigInt -> number) để truyền client.
@@ -44,6 +46,7 @@ export interface CharacterState {
   isMax: boolean; // đã đạt tối đa chưa
   exp: number; // tu vi trong tầng hiện tại
   expToNext: number; // exp cần để lên tầng kế tiếp
+  readyBreakthrough: boolean; // đầy tầng 9 -> sẵn sàng Độ Kiếp đột phá đại cảnh giới
 
   // Vòng luyện khí
   expPerCycle: number;

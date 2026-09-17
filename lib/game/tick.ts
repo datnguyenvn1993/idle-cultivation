@@ -6,6 +6,8 @@ import {
   realmName,
   computeStats,
   totalTierIndex,
+  techniqueBonus,
+  SUB_TIERS,
   STAT_POINTS_PER_TIER,
   OFFLINE_RATE,
   ONLINE_GRACE_MS,
@@ -28,7 +30,8 @@ function techStates(character: CharacterWithTechniques): TechniqueState[] {
   return character.techniques.map((t) => ({
     key: t.technique.key,
     name: t.technique.name,
-    expMultiplier: t.technique.expMultiplier,
+    currency: t.technique.currency === "GOLD" ? "GOLD" : "STONE",
+    unlockRealm: t.technique.unlockRealm,
     level: t.level,
     active: t.active,
   }));
@@ -36,8 +39,7 @@ function techStates(character: CharacterWithTechniques): TechniqueState[] {
 
 function toActive(techs: TechniqueState[]): ActiveTechnique[] {
   return techs.map((t) => ({
-    expMultiplier: t.expMultiplier,
-    level: t.level,
+    bonus: techniqueBonus(t.currency, t.unlockRealm, t.level),
     active: t.active,
   }));
 }
@@ -103,6 +105,8 @@ function buildState(
     isMax: isMaxTier(major, sub),
     exp,
     expToNext: expForTier(major, sub),
+    readyBreakthrough:
+      sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub),
     expPerCycle: expPerCycle(major, toActive(techs)),
     cycleMs: cycleDurationMs(1),
     cycleProgressMs,
@@ -316,17 +320,18 @@ export async function grantFocusCycles(
   let exp = settled.exp;
   for (let i = 0; i < n; i++) {
     if (isMaxTier(major, sub)) break;
+    if (sub >= SUB_TIERS && exp >= expForTier(major, sub)) break; // chờ Độ Kiếp
     exp += perCycle;
-    while (!isMaxTier(major, sub)) {
+    while (sub < SUB_TIERS) {
       const need = expForTier(major, sub);
       if (exp < need) break;
       exp -= need;
-      if (sub < 9) sub += 1;
-      else {
-        major += 1;
-        sub = 1;
-      }
+      sub += 1;
     }
+  }
+  if (sub >= SUB_TIERS) {
+    const cap = expForTier(major, sub);
+    if (exp > cap) exp = cap;
   }
 
   const tiersGained =
@@ -352,6 +357,8 @@ export async function grantFocusCycles(
     isMax: isMaxTier(major, sub),
     exp: Math.floor(exp),
     expToNext: expForTier(major, sub),
+    readyBreakthrough:
+      sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub),
     statPoints: newStatPoints,
     gainedThisTick: Math.floor(perCycle * n),
     cyclesThisTick: n,

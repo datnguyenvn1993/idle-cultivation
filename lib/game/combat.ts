@@ -9,6 +9,7 @@ import {
   TARGET_SURVIVE_TIME,
   MIN_CLEAR_TIME,
   MONSTER_DIFFICULTY,
+  MONSTER_ATK_MULT,
   MAX_DMG_REDUCTION,
   mitigationK,
   stageRealm,
@@ -47,8 +48,12 @@ export function stageSpec(stage: number): StageSpec {
     index: s,
     realm,
     monsterHp: Math.round(expDPS * TARGET_CLEAR_TIME * factor * MONSTER_DIFFICULTY),
-    monsterDps: Math.max(1, Math.round((expEHP / TARGET_SURVIVE_TIME) * factor)),
-    atkType: s % 2 === 0 ? "MAGIC" : "PHYS",
+    monsterDps: Math.max(
+      1,
+      Math.round((expEHP / TARGET_SURVIVE_TIME) * factor * MONSTER_ATK_MULT),
+    ),
+    // Loại đòn "ngẫu nhiên" nhưng ỔN ĐỊNH theo ải (để khó cả thể tu lẫn pháp tu).
+    atkType: (((s * 1103515245 + 12345) >>> 8) & 1) === 0 ? "MAGIC" : "PHYS",
     monsterPRes: Math.round(b.pRes * factor),
     monsterMRes: Math.round(b.mRes * factor),
     element: ELEMENTS[s % 5],

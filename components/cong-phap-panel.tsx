@@ -209,14 +209,17 @@ export function CongPhapPanel({
                     disabled={
                       pending ||
                       selected.atMaxLevel ||
+                      selected.needsItem ||
                       balOf(selected.currency) < selected.levelUpCost
                     }
                     onClick={() => run(() => levelTechnique(selected.id))}
-                    className="flex-1 rounded-xl bg-mystic py-3 font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
+                    className="flex-1 rounded-xl bg-mystic py-3 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-40"
                   >
                     {selected.atMaxLevel
                       ? "Tối đa"
-                      : `Nâng · ${selected.levelUpCost.toLocaleString()}${cur(selected.currency)}`}
+                      : selected.needsItem
+                        ? "Cần vật phẩm (Phase D)"
+                        : `Nâng · ${selected.levelUpCost.toLocaleString()}${cur(selected.currency)}`}
                   </button>
                 </>
               )}
