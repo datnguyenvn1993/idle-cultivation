@@ -231,7 +231,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         <div className="mb-4 flex items-center justify-between rounded-xl border border-jade/30 bg-jade/10 px-4 py-2 text-sm">
           <span className="text-jade">
             🧘 Tu luyện offline (50%): <b>+{offline.gained.toLocaleString()} EXP</b>{" "}
-            ({offline.cycles.toLocaleString()} vòng)
+            ({offline.cycles.toLocaleString()} chu thiên)
           </span>
           <button
             onClick={() => setOffline(null)}
@@ -414,13 +414,13 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
               : `${Math.floor(exp).toLocaleString()} / ${threshold.toLocaleString()} EXP`}
           </span>
           <span>
-            +{perCycle.toLocaleString()} EXP / vòng · {(cycleMs / 1000).toFixed(0)}s/vòng
+            +{perCycle.toLocaleString()} EXP / chu thiên · {(cycleMs / 1000).toFixed(0)}s/chu thiên
           </span>
         </div>
       </div>
 
       <p className="mt-4 text-center text-xs text-white/30">
-        Online nhận 100% tu vi mỗi vòng. Offline vẫn tu (50%, tích lũy tối đa 8 giờ).
+        Online nhận 100% tu vi mỗi chu thiên. Offline vẫn tu (50%, tích lũy tối đa 8 giờ).
       </p>
     </section>
   );

@@ -52,7 +52,7 @@ export const REALMS: Realm[] = [
 // Mỗi vòng luyện khí kéo dài CYCLE_SECONDS giây; hoàn thành 1 vòng cộng EXP.
 // Đây là "đơn vị" để nhân hệ số tâm pháp / buff / talent về sau.
 // ---------------------------------------------------------------------------
-export const CYCLE_SECONDS = 5;
+export const CYCLE_SECONDS = 10; // 10 giây mỗi chu thiên
 
 // EXP gốc mỗi vòng (trước khi nhân cảnh giới + tâm pháp + buff).
 export const BASE_EXP_PER_CYCLE = 5;

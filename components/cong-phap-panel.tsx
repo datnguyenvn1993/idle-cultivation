@@ -158,7 +158,7 @@ export function CongPhapPanel({
                     {selected.atMaxLevel ? " (tối đa)" : `/${selected.maxLevel}`}
                   </span>
                   <span className="font-semibold text-jade">
-                    {pct(selected.multiplierNow)} EXP/vòng
+                    {pct(selected.multiplierNow)} EXP/chu thiên
                     {!selected.atMaxLevel && (
                       <span className="text-white/40"> → {pct(selected.multiplierNext)}</span>
                     )}
@@ -166,7 +166,7 @@ export function CongPhapPanel({
                 </div>
               ) : (
                 <div className="text-white/60">
-                  Lĩnh ngộ để nhận {pct(selected.multiplierNext)} EXP/vòng (cấp 1)
+                  Lĩnh ngộ để nhận {pct(selected.multiplierNext)} EXP/chu thiên (cấp 1)
                 </div>
               )}
             </div>

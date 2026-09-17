@@ -125,17 +125,17 @@ Tất cả hằng số ở `lib/game/balance.ts`.
 - `REALMS[]`: 10 đại cảnh giới (Phàm Nhân → Luyện Khí → Trúc Cơ → Kim Đan → Nguyên Anh → Hóa Thần → Luyện Hư → Hợp Thể → Đại Thừa → Độ Kiếp), mỗi cái có `expRate` (nhân EXP/vòng) + `statBonus`.
 - Mỗi đại cảnh giới **9 tầng**. EXP để lên tầng:
   ```
-  nền(major) = EXP_BASE(20) × MAJOR_JUMP(10)^major
+  nền(major) = EXP_BASE(40) × MAJOR_JUMP(10)^major
   tầng 1..8  = nền × tầng
   tầng 9     = nền × 9 × BREAKTHROUGH_MULT(4)   ← bức tường đột phá đại cảnh giới
   ```
   Hàm: `expForTier(major, sub)`, `tierName`, `isMaxTier`, `totalTierIndex`.
 
-### 7.2 Vòng luyện khí (thiền)
-- `CYCLE_SECONDS = 5`. Mỗi vòng cộng:
+### 7.2 Chu thiên (thiền) — thuật ngữ hiển thị là "chu thiên" (code vẫn gọi cycle)
+- `CYCLE_SECONDS = 10`. Mỗi **chu thiên** cộng:
   ```
   expPerCycle(major, techs) = BASE_EXP_PER_CYCLE(5) × REALMS[major].expRate × ∏(tech.expMultiplier^level cho tech active)
-  cycleDurationMs(speedMult) = 5000 / speedMult   (buff tốc độ sau này rút ngắn)
+  cycleDurationMs(speedMult) = 10000 / speedMult   (buff tốc độ sau này rút ngắn)
   ```
 - `applyMeditationByTime(major, sub, exp, elapsedMs, techs, speedMult, expRate)` — chạy chung online & offline.
 
@@ -153,6 +153,7 @@ Tất cả hằng số ở `lib/game/balance.ts`.
   computeStats(major, alloc) = REALMS[major].statBonus[k] + alloc[k] × STAT_POINT_GAINS[k]
   STAT_POINT_GAINS = {hp:20, atk:3, def:2, pPower:3, mPower:3, pRes:2, mRes:2}
   ```
+- Chỉ số CHO PHÉP phân bổ: `STAT_KEYS = [pPower, mPower, pRes, mRes, hp]` (đã bỏ atk "Tấn công" & def "Phòng thủ" khỏi UI — trùng với pPower/pRes). UI xếp cặp: Công vật lý|Công phép, Thủ vật lý|Thủ phép, Máu|Tốc đánh (Tốc đánh chỉ hiển thị).
 
 ### 7.5 Công pháp (2 bộ / cảnh giới)
 - Bộ **GOLD**: free lĩnh ngộ, nâng cấp bằng Vàng. Bộ **STONE**: lĩnh ngộ tốn Linh thạch (`unlockCost`), nâng bằng Linh thạch.
@@ -161,7 +162,8 @@ Tất cả hằng số ở `lib/game/balance.ts`.
 - Server settle tick TRƯỚC mỗi thay đổi (learn/toggle/level) để không lệch EXP.
 
 ### 7.6 Tập trung cao độ
-- Client bật → sinh check-point ngẫu nhiên; chạm gọi `focusReward()` → `grantFocusCycles(+1 vòng)` (100%), cooldown 600ms (`lastFocusAt`). Khuyến khích chơi chủ động.
+- Client bật 1 **phiên** dài `FOCUS_DURATION_MS(30s)`: check-point sinh ngẫu nhiên mỗi **5–10s**, chạm gọi `focusReward()` → `grantFocusCycles(+1 vòng)` (100%). Hết phiên → **hồi chiêu** `FOCUS_COOLDOWN_MS(4')` (lưu `localStorage.focusCooldownUntil`, có đếm ngược). Server còn chốt 600ms `lastFocusAt` chống spam. Giới hạn để không lên cấp quá nhanh.
+- ⚠️ Hồi chiêu hiện enforce ở CLIENT (localStorage). Muốn chống cheat thật cần lưu mốc phiên/hồi chiêu ở server.
 
 ### 7.7 Quà khởi đầu
 - `STARTER_STONES(500)` + `STARTER_GOLD(300)`, trao 1 lần qua `starterGranted`.
