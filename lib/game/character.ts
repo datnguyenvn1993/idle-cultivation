@@ -40,6 +40,7 @@ export async function getOrCreateCharacter(userId: string) {
         realm: 0,
         subLevel: 1,
         exp: BigInt(0),
+        tribulationExp: BigInt(0),
         gold: BigInt(STARTER_GOLD),
         spiritStones: BigInt(STARTER_STONES),
         element: Element.KIM,

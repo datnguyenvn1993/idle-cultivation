@@ -46,7 +46,14 @@ export interface CharacterState {
   isMax: boolean; // đã đạt tối đa chưa
   exp: number; // tu vi trong tầng hiện tại
   expToNext: number; // exp cần để lên tầng kế tiếp
-  readyBreakthrough: boolean; // đầy tầng 9 -> sẵn sàng Độ Kiếp đột phá đại cảnh giới
+  readyBreakthrough: boolean; // đầy tầng 9 + đầy bể chân khí -> sẵn sàng Độ Kiếp
+
+  // Độ Kiếp — bể chân khí phải đầy mới đột phá đại cảnh giới
+  tribulation: number; // chân khí độ kiếp đã tích
+  tribulationNeed: number; // chân khí cần để đột phá
+  tier9Full: boolean; // đã đầy tầng 9 (đang tích chân khí độ kiếp)
+  energyName: string; // tên bậc năng lượng cảnh giới hiện tại
+  nextEnergyName: string; // bậc năng lượng sau khi độ kiếp
 
   // Vòng luyện khí
   expPerCycle: number;

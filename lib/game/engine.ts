@@ -68,18 +68,21 @@ export interface MeditationResult {
   newMajor: number; // đại cảnh giới mới
   newSub: number; // tầng mới (1..9)
   newExp: number; // tu vi còn lại trong tầng hiện tại
-  gained: number; // tổng exp nhận trong đợt tick này
+  newTrib: number; // chân khí độ kiếp đã tích (khi đầy tầng 9)
+  gained: number; // tổng exp/chân khí nhận trong đợt tick này
   cycles: number; // số vòng đã hoàn thành
   leftoverMs: number; // thời gian dư chưa đủ 1 vòng (để giữ tiến trình)
   cycleMs: number;
 }
 
 // Cộng EXP theo số vòng hoàn thành trong `elapsedMs` (dùng chung offline + online).
-// Tự lên tầng / đột phá đại cảnh giới; expPerCycle tính lại theo đại cảnh giới hiện tại.
+// Tự lên TIỂU tầng (1->9); đầy tầng 9 thì đổ chân khí vào bể độ kiếp (không tự đột phá).
 export function applyMeditationByTime(
   major: number,
   sub: number,
   exp: number,
+  trib: number, // chân khí độ kiếp hiện có
+  tribReq: number, // chân khí cần để đột phá đại cảnh giới này
   elapsedMs: number,
   techniques: ActiveTechnique[],
   speedMult = 1,
@@ -93,13 +96,20 @@ export function applyMeditationByTime(
   let nm = major;
   let ns = sub;
   let ne = exp;
+  let nt = trib;
   let gained = 0;
 
   for (let i = 0; i < cycles; i++) {
     if (isMaxTier(nm, ns)) break; // đã tối đa
-    // Chờ Độ Kiếp: đầy tầng 9 (chưa phải cảnh giới cuối) -> ngừng, không tự đột phá.
-    if (ns >= SUB_TIERS && ne >= expForTier(nm, ns)) break;
     const pc = expPerCycle(nm, techniques) * expRate;
+    const tier9Full = ns >= SUB_TIERS && ne >= expForTier(nm, ns);
+    if (tier9Full) {
+      // Đầy tầng 9: đổ chân khí vào bể độ kiếp; đầy bể -> chờ Độ Kiếp thủ công.
+      if (nt >= tribReq) break;
+      nt = Math.min(tribReq, nt + pc);
+      gained += pc;
+      continue;
+    }
     ne += pc;
     gained += pc;
     // Chỉ tự lên TIỂU tầng (1->9). Đột phá ĐẠI cảnh giới phải Độ Kiếp thủ công.
@@ -118,7 +128,7 @@ export function applyMeditationByTime(
   }
   if (nm > MAX_MAJOR) nm = MAX_MAJOR;
 
-  return { newMajor: nm, newSub: ns, newExp: ne, gained, cycles, leftoverMs, cycleMs };
+  return { newMajor: nm, newSub: ns, newExp: ne, newTrib: nt, gained, cycles, leftoverMs, cycleMs };
 }
 
 // ---------------------------------------------------------------------------

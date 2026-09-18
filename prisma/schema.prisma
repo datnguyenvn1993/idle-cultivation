@@ -90,6 +90,7 @@ model Character {
   realm    Int    @default(0) // đại cảnh giới (index vào REALMS trong balance.ts)
   subLevel Int    @default(1) // tầng 1..9 trong đại cảnh giới hiện tại
   exp      BigInt @default(0) // tu vi tích lũy trong TẦNG hiện tại
+  tribulationExp BigInt @default(0) // chân khí độ kiếp (đầy tầng 9 mới tích, để đột phá)
 
   gold         BigInt @default(0) // Vàng — rơi từ quái
   spiritStones BigInt @default(0) // Linh thạch — tiền nạp / cao cấp

@@ -8,7 +8,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { syncTick, focusReward, breakthrough } from "@/app/actions";
+import { syncTick, focusReward, breakthrough, refineTribulation } from "@/app/actions";
 import { MeditationBackground } from "@/components/meditation-background";
 import {
   expForTier,
@@ -16,6 +16,9 @@ import {
   tierName,
   realmName,
   techniqueBonus,
+  tribulationRequired,
+  stoneToTribulation,
+  energyName,
   SUB_TIERS,
   ELEMENT_LABELS,
   FOCUS_DURATION_MS,
@@ -45,6 +48,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const [major, setMajor] = useState(initial.realm);
   const [sub, setSub] = useState(initial.subLevel);
   const [exp, setExp] = useState(initial.exp);
+  const [trib, setTrib] = useState(initial.tribulation);
   const [floaters, setFloaters] = useState<Floater[]>([]);
   const [flashKey, setFlashKey] = useState(0);
   const [offline, setOffline] = useState(
@@ -80,6 +84,7 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const majorRef = useRef(initial.realm);
   const subRef = useRef(initial.subLevel);
   const expRef = useRef(initial.exp);
+  const tribRef = useRef(initial.tribulation);
   const progressRef = useRef(initial.cycleProgressMs);
   const ringRef = useRef<SVGCircleElement | null>(null);
   const floaterId = useRef(0);
@@ -88,8 +93,13 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const threshold = expForTier(major, sub);
   const atMax = isMaxTier(major, sub);
   const pctExp = Math.min(100, (exp / threshold) * 100);
-  const ready = sub >= SUB_TIERS && exp >= threshold && !atMax; // sẵn sàng Độ Kiếp
+  const tier9Full = sub >= SUB_TIERS && exp >= threshold && !atMax; // đang tích chân khí độ kiếp
+  const tribNeed = tribulationRequired(major);
+  const pctTrib = Math.min(100, (trib / tribNeed) * 100);
+  const ready = tier9Full && trib >= tribNeed; // sẵn sàng Độ Kiếp
   const [btPending, startBt] = useTransition();
+  const [refinePending, startRefine] = useTransition();
+  const [stoneSpend, setStoneSpend] = useState(10);
 
   const spawnFloater = useCallback((amount: number) => {
     const id = floaterId.current++;
@@ -100,10 +110,19 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
   const completeCycle = useCallback(() => {
     const mj = majorRef.current;
     if (isMaxTier(mj, subRef.current)) return;
-    // Đầy tầng 9 -> chờ Độ Kiếp (không tự đột phá đại cảnh giới).
-    if (subRef.current >= SUB_TIERS && expRef.current >= expForTier(mj, subRef.current))
-      return;
     const pc = expPerCycle(mj, active);
+    const isTier9Full =
+      subRef.current >= SUB_TIERS && expRef.current >= expForTier(mj, subRef.current);
+    if (isTier9Full) {
+      // Đầy tầng 9: đổ chân khí vào bể độ kiếp; đầy bể -> chờ Độ Kiếp thủ công.
+      const need = tribulationRequired(mj);
+      if (tribRef.current >= need) return;
+      const nt = Math.min(need, tribRef.current + pc);
+      tribRef.current = nt;
+      setTrib(nt);
+      spawnFloater(pc);
+      return;
+    }
     let ne = expRef.current + pc;
     let sb = subRef.current;
     while (sb < SUB_TIERS) {
@@ -135,7 +154,8 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       const paused =
         isMaxTier(majorRef.current, subRef.current) ||
         (subRef.current >= SUB_TIERS &&
-          expRef.current >= expForTier(majorRef.current, subRef.current));
+          expRef.current >= expForTier(majorRef.current, subRef.current) &&
+          tribRef.current >= tribulationRequired(majorRef.current));
       if (!paused) {
         let p = progressRef.current + dt;
         while (p >= cycleMs) {
@@ -161,10 +181,12 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       majorRef.current = s.realm;
       subRef.current = s.subLevel;
       expRef.current = s.exp;
+      tribRef.current = s.tribulation;
       progressRef.current = s.cycleProgressMs;
       setMajor(s.realm);
       setSub(s.subLevel);
       setExp(s.exp);
+      setTrib(s.tribulation);
     } catch {
       /* bỏ qua lỗi mạng tạm thời */
     }
@@ -179,6 +201,16 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
       }
     });
   }, [doSync]);
+
+  const doRefine = useCallback(
+    (stones: number) => {
+      startRefine(async () => {
+        const r = await refineTribulation(stones);
+        if (r.ok) await doSync();
+      });
+    },
+    [doSync],
+  );
 
   useEffect(() => {
     const id = setInterval(doSync, 60_000);
@@ -422,6 +454,9 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
             <b className="text-mystic">{ELEMENT_LABELS[initial.element as ElementKey]}</b>
           </span>
         </div>
+        <div className="mb-1 text-xs text-white/40">
+          Chất chân khí: <b className="text-jade/90">{energyName(major)}</b>
+        </div>
         <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
           <div
             className="h-full rounded-full bg-gradient-to-r from-jade to-mystic transition-[width] duration-300"
@@ -440,6 +475,61 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
         </div>
       </div>
 
+      {/* Bể chân khí độ kiếp — chỉ hiện khi đã đầy tầng 9 */}
+      {tier9Full && (
+        <div className="mt-3 rounded-xl border border-gold/25 bg-gold/5 p-3">
+          <div className="mb-1 flex items-end justify-between">
+            <span className="text-sm font-semibold text-gold">
+              🌩️ Chân khí độ kiếp
+            </span>
+            <span className="text-xs text-white/50">
+              {energyName(major)} → <b className="text-jade">{energyName(major + 1)}</b>
+            </span>
+          </div>
+          <div className="h-3 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-gold to-red-400 transition-[width] duration-300"
+              style={{ width: `${pctTrib}%` }}
+            />
+          </div>
+          <div className="mt-1 text-right text-xs text-white/40">
+            {Math.floor(trib).toLocaleString()} / {tribNeed.toLocaleString()} chân khí
+          </div>
+
+          {!ready && (
+            <div className="mt-3 border-t border-white/10 pt-3">
+              <div className="text-xs text-white/60">
+                Chuyển hóa chất lượng chân khí bằng 💎 Linh thạch để độ kiếp nhanh hơn.
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <input
+                  type="number"
+                  min={1}
+                  max={initial.spiritStones}
+                  value={stoneSpend}
+                  onChange={(e) =>
+                    setStoneSpend(Math.max(1, Math.floor(Number(e.target.value) || 1)))
+                  }
+                  className="w-16 rounded-md bg-white/10 px-2 py-1 text-center text-white/90 outline-none"
+                />
+                <span className="text-white/40">
+                  ≈ +{stoneToTribulation(major, stoneSpend).toLocaleString()} chân khí
+                </span>
+              </div>
+              <button
+                onClick={() => doRefine(stoneSpend)}
+                disabled={refinePending || initial.spiritStones <= 0}
+                className="mt-2 w-full rounded-xl bg-mystic/80 py-2.5 text-sm font-semibold text-white transition hover:bg-mystic disabled:opacity-50"
+              >
+                {initial.spiritStones <= 0
+                  ? "Hết linh thạch"
+                  : `Chuyển hóa · ${Math.min(stoneSpend, initial.spiritStones).toLocaleString()}💎`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {ready && (
         <button
           onClick={doBreakthrough}
@@ -452,8 +542,10 @@ export function MeditationView({ initial }: { initial: CharacterState }) {
 
       <p className="mt-4 text-center text-xs text-white/30">
         {ready
-          ? "Tu vi đã viên mãn tầng 9 — Độ Kiếp để đột phá đại cảnh giới!"
-          : "Online nhận 100% tu vi mỗi chu thiên. Offline vẫn tu (50%, tối đa 8 giờ)."}
+          ? "Bể chân khí đã viên mãn — Độ Kiếp để chuyển hóa lên bậc năng lượng cao hơn!"
+          : tier9Full
+            ? "Đầy tầng 9! Tích đủ chân khí (hoặc dùng 💎) để độ kiếp đột phá đại cảnh giới."
+            : "Online nhận 100% tu vi mỗi chu thiên. Offline vẫn tu (50%, tối đa 8 giờ)."}
       </p>
     </section>
   );

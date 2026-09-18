@@ -7,7 +7,10 @@ import {
   computeStats,
   totalTierIndex,
   techniqueBonus,
+  tribulationRequired,
+  energyName,
   SUB_TIERS,
+  MAX_MAJOR,
   STAT_POINTS_PER_TIER,
   OFFLINE_RATE,
   ONLINE_GRACE_MS,
@@ -73,6 +76,11 @@ function buildState(
   const stats = computeStats(major, alloc);
   const element = character.element as ElementKey;
 
+  // Độ kiếp: đầy tầng 9 + đầy bể chân khí mới được đột phá.
+  const tier9Full = sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub);
+  const tribNeed = tribulationRequired(major);
+  const tribulation = Math.min(tribNeed, Number(character.tribulationExp));
+
   // maxStage = ải cao nhất ĐÃ CLEAR (mở khóa) — chỉ tăng khi thực sự vượt ải.
   const maxStage = Math.max(1, character.highestStage);
   const curStage = Math.max(1, Math.min(character.currentStage, maxStage));
@@ -105,8 +113,12 @@ function buildState(
     isMax: isMaxTier(major, sub),
     exp,
     expToNext: expForTier(major, sub),
-    readyBreakthrough:
-      sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub),
+    readyBreakthrough: tier9Full && tribulation >= tribNeed,
+    tribulation,
+    tribulationNeed: tribNeed,
+    tier9Full,
+    energyName: energyName(major),
+    nextEnergyName: energyName(Math.min(major + 1, MAX_MAJOR)),
     expPerCycle: expPerCycle(major, toActive(techs)),
     cycleMs: cycleDurationMs(1),
     cycleProgressMs,
@@ -174,10 +186,13 @@ export async function runMeditationTick(
   const rate = offline ? OFFLINE_RATE : 1;
 
   const techs = toActive(techStates(character));
+  const tribReq = tribulationRequired(character.realm);
   const res = applyMeditationByTime(
     character.realm,
     character.subLevel,
     Number(character.exp),
+    Number(character.tribulationExp),
+    tribReq,
     effElapsed,
     techs,
     1,
@@ -197,6 +212,7 @@ export async function runMeditationTick(
         realm: res.newMajor,
         subLevel: res.newSub,
         exp: BigInt(Math.floor(res.newExp)),
+        tribulationExp: BigInt(Math.floor(res.newTrib)),
         lastTickAt: new Date(newLastTick),
         statPoints: newStatPoints,
       },
@@ -204,6 +220,7 @@ export async function runMeditationTick(
     character.realm = res.newMajor;
     character.subLevel = res.newSub;
     character.exp = BigInt(Math.floor(res.newExp));
+    character.tribulationExp = BigInt(Math.floor(res.newTrib));
     character.statPoints = newStatPoints;
   }
 
@@ -318,9 +335,16 @@ export async function grantFocusCycles(
   let major = settled.realm;
   let sub = settled.subLevel;
   let exp = settled.exp;
+  let trib = Number(character.tribulationExp);
+  const tribReq = tribulationRequired(major);
   for (let i = 0; i < n; i++) {
     if (isMaxTier(major, sub)) break;
-    if (sub >= SUB_TIERS && exp >= expForTier(major, sub)) break; // chờ Độ Kiếp
+    const tier9Full = sub >= SUB_TIERS && exp >= expForTier(major, sub);
+    if (tier9Full) {
+      if (trib >= tribReq) break; // đầy bể -> chờ Độ Kiếp
+      trib = Math.min(tribReq, trib + perCycle);
+      continue;
+    }
     exp += perCycle;
     while (sub < SUB_TIERS) {
       const need = expForTier(major, sub);
@@ -344,11 +368,14 @@ export async function grantFocusCycles(
       realm: major,
       subLevel: sub,
       exp: BigInt(Math.floor(exp)),
+      tribulationExp: BigInt(Math.floor(trib)),
       statPoints: newStatPoints,
       lastFocusAt: new Date(),
     },
   });
+  character.tribulationExp = BigInt(Math.floor(trib));
 
+  const tier9FullNow = sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub);
   return {
     ...settled,
     realm: major,
@@ -357,8 +384,10 @@ export async function grantFocusCycles(
     isMax: isMaxTier(major, sub),
     exp: Math.floor(exp),
     expToNext: expForTier(major, sub),
-    readyBreakthrough:
-      sub >= SUB_TIERS && exp >= expForTier(major, sub) && !isMaxTier(major, sub),
+    readyBreakthrough: tier9FullNow && trib >= tribReq,
+    tribulation: Math.min(tribReq, Math.floor(trib)),
+    tribulationNeed: tribReq,
+    tier9Full: tier9FullNow,
     statPoints: newStatPoints,
     gainedThisTick: Math.floor(perCycle * n),
     cyclesThisTick: n,

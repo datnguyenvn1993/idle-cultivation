@@ -96,6 +96,52 @@ export function totalTierIndex(major: number, sub: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// ĐỘ KIẾP — bể "chân khí độ kiếp" phải tích đầy MỚI được đột phá đại cảnh giới.
+//   Yêu cầu = (tổng EXP của cả 9 tầng cảnh giới) / TRIBULATION_DIVISOR.
+//   Cho cảm giác vượt đại cảnh giới thật sự khó (như độ kiếp trong tiên hiệp).
+//   Có thể tiêu Linh thạch để "chuyển hóa chất lượng chân khí" đổ thẳng vào bể.
+// ---------------------------------------------------------------------------
+export const TRIBULATION_DIVISOR = 2;
+// 1 Linh thạch quy đổi ra bao nhiêu chân khí (neo theo yêu cầu của cảnh giới).
+// 0.02 => ~50 💎 lấp đầy bể ở mọi cảnh giới (đột phá thần tốc bằng tiền tệ cao cấp).
+export const STONE_TO_TRIBULATION_FRACTION = 0.02;
+
+// Chân khí độ kiếp cần để đột phá TỪ `realm` lên `realm + 1`.
+export function tribulationRequired(realm: number): number {
+  const m = Math.min(Math.max(realm, 0), MAX_MAJOR);
+  let sum = 0;
+  for (let sub = 1; sub <= SUB_TIERS; sub++) sum += expForTier(m, sub);
+  return Math.round(sum / TRIBULATION_DIVISOR);
+}
+
+// Chân khí nhận được khi tiêu `stones` linh thạch để chuyển hóa (ở cảnh giới `realm`).
+export function stoneToTribulation(realm: number, stones: number): number {
+  const per = tribulationRequired(realm) * STONE_TO_TRIBULATION_FRACTION;
+  return Math.max(0, Math.round(per * Math.max(0, Math.floor(stones))));
+}
+
+// ---------------------------------------------------------------------------
+// BẬC NĂNG LƯỢNG (chất chân khí) — mỗi đại cảnh giới một tên "chất" cao hơn,
+// như các truyện tiên hiệp. Độ kiếp = chuyển hóa chất chân khí lên bậc kế.
+// ---------------------------------------------------------------------------
+export const ENERGY_NAMES: string[] = [
+  "Khí Huyết",  // Phàm Nhân
+  "Chân Khí",   // Luyện Khí
+  "Nội Lực",    // Trúc Cơ
+  "Linh Nguyên",// Kim Đan
+  "Chân Nguyên",// Nguyên Anh
+  "Thần Lực",   // Hóa Thần
+  "Hư Nguyên",  // Luyện Hư
+  "Đạo Lực",    // Hợp Thể
+  "Đạo Nguyên", // Đại Thừa
+  "Hỗn Nguyên", // Độ Kiếp
+];
+
+export function energyName(realm: number): string {
+  return ENERGY_NAMES[Math.min(Math.max(realm, 0), MAX_MAJOR)] ?? "Chân Khí";
+}
+
+// ---------------------------------------------------------------------------
 // ĐIỂM CHỈ SỐ — mỗi lần lên tầng nhận STAT_POINTS_PER_TIER điểm.
 // ---------------------------------------------------------------------------
 export const STAT_POINTS_PER_TIER = 3;

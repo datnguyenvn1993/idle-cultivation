@@ -9,6 +9,8 @@ import { runTick, grantFocusCycles } from "@/lib/game/tick";
 import {
   activeSlots,
   techniqueLevelCost,
+  tribulationRequired,
+  stoneToTribulation,
   STAT_KEYS,
   STAT_POINTS_PER_TIER,
   FREE_MAX_GOLD_LEVEL,
@@ -195,8 +197,50 @@ export async function breakthrough(): Promise<ActionResult> {
       realm: state.realm + 1,
       subLevel: 1,
       exp: BigInt(0),
+      tribulationExp: BigInt(0), // bể chân khí về 0 cho cảnh giới mới
       statPoints: { increment: STAT_POINTS_PER_TIER },
       lastTickAt: new Date(),
+    },
+  });
+  revalidatePath("/");
+  return { ok: true };
+}
+
+// "Chuyển hóa chất lượng chân khí": tiêu Linh thạch đổ thẳng vào bể độ kiếp.
+export async function refineTribulation(stones: number): Promise<ActionResult> {
+  const character = await requireCharacter();
+  const state = await runTick(character); // quyết toán trước
+  if (!state.tier9Full)
+    return { ok: false, error: "Chưa đầy tầng 9 — chưa thể chuyển hóa chân khí" };
+
+  const req = tribulationRequired(state.realm);
+  const have = Number(character.tribulationExp);
+  if (have >= req) return { ok: true }; // đã đầy bể
+
+  const fresh = await prisma.character.findUnique({
+    where: { id: character.id },
+    select: { spiritStones: true, tribulationExp: true },
+  });
+  if (!fresh) return { ok: false, error: "Không tìm thấy nhân vật" };
+
+  const maxSpend = Math.max(1, Math.floor(stones));
+  const stock = Number(fresh.spiritStones);
+  if (stock <= 0) return { ok: false, error: "Không đủ linh thạch" };
+
+  // Không tiêu quá số cần để lấp đầy bể (khỏi phí linh thạch).
+  const current = Number(fresh.tribulationExp);
+  let spend = Math.min(maxSpend, stock);
+  while (spend > 1 && current + stoneToTribulation(state.realm, spend - 1) >= req) {
+    spend -= 1;
+  }
+  const gain = stoneToTribulation(state.realm, spend);
+  const newTrib = Math.min(req, current + gain);
+
+  await prisma.character.update({
+    where: { id: character.id },
+    data: {
+      spiritStones: { decrement: BigInt(spend) },
+      tribulationExp: BigInt(newTrib),
     },
   });
   revalidatePath("/");
